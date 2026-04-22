@@ -1,5 +1,16 @@
 name: CI
 
+# Note on directory layout (CI vs. local):
+# `shopware/github-actions/setup-extension@main` hardcodes the extension checkout
+# to `custom/plugins/{name}/`. Although this project is a Symfony bundle (not a
+# Shopware plugin) and lives at `custom/bundles/SwagMcpDevTools/` in the monorepo,
+# in CI it's symlinked into `custom/plugins/` to satisfy the action. Bundle
+# registration is done via class name in `config/bundles.php`, so the filesystem
+# path is irrelevant at runtime — the bundle still loads the same either way.
+#
+# If the setup-extension action ever grows a `path:` input, we can switch back to
+# `custom/bundles/` here to match local layout.
+
 on:
   push:
     branches: [main]
@@ -10,6 +21,7 @@ env:
   COMPOSER_PLUGIN_LOADER: 1
   PHP_VERSION: "8.4"
   SHOPWARE_VERSION: poc/mcp-bundle
+  # See header comment: CI uses custom/plugins/ because setup-extension hardcodes it.
   EXTRA_REPOSITORIES: |
     {
       "${{ github.event.repository.name }}": {

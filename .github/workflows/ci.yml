@@ -53,7 +53,7 @@ jobs:
 
       - name: Register bundle
         run: |
-          echo "Swag\\\\McpDevTools\\\\SwagMcpDevToolsBundle::class => ['all' => true]," >> config/bundles.php
+          sed -i '/^return \$bundles;/i $bundles[Swag\\McpDevTools\\SwagMcpDevToolsBundle::class] = ["all" => true];' config/bundles.php
           symfony console cache:clear
 
       - name: PHPStan
@@ -81,7 +81,7 @@ jobs:
 
       - name: Register bundle
         run: |
-          echo "Swag\\\\McpDevTools\\\\SwagMcpDevToolsBundle::class => ['all' => true]," >> config/bundles.php
+          sed -i '/^return \$bundles;/i $bundles[Swag\\McpDevTools\\SwagMcpDevToolsBundle::class] = ["all" => true];' config/bundles.php
           symfony console cache:clear
 
       - name: PHPUnit (unit)
@@ -103,7 +103,7 @@ jobs:
 
       - name: Register bundle
         run: |
-          echo "Swag\\\\McpDevTools\\\\SwagMcpDevToolsBundle::class => ['all' => true]," >> config/bundles.php
+          sed -i '/^return \$bundles;/i $bundles[Swag\\McpDevTools\\SwagMcpDevToolsBundle::class] = ["all" => true];' config/bundles.php
           symfony console cache:clear
 
       - name: Assert dev MCP tools are registered

@@ -14,7 +14,7 @@ env:
     {
       "${{ github.event.repository.name }}": {
         "type": "path",
-        "url": "custom/bundles/${{ github.event.repository.name }}",
+        "url": "custom/plugins/${{ github.event.repository.name }}",
         "symlink": true
       }
     }
@@ -45,7 +45,7 @@ jobs:
           symfony console cache:clear
 
       - name: PHPStan
-        run: symfony composer -d custom/bundles/${{ github.event.repository.name }} run phpstan
+        run: symfony composer -d custom/plugins/${{ github.event.repository.name }} run phpstan
 
   codestyle:
     name: Code Style
@@ -73,7 +73,7 @@ jobs:
           symfony console cache:clear
 
       - name: PHPUnit (unit)
-        run: symfony composer -d custom/bundles/${{ github.event.repository.name }} run test -- --testsuite unit
+        run: symfony composer -d custom/plugins/${{ github.event.repository.name }} run test -- --testsuite unit
 
   mcp-registration:
     name: MCP Tool Registration

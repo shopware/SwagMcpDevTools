@@ -1,0 +1,39 @@
+{
+    "name": "swag/mcp-dev-tools",
+    "description": "Developer-oriented MCP tools for remote Shopware instance introspection — log streaming and search over the native /api/_mcp endpoint",
+    "version": "0.0.1",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": "^8.2",
+        "shopware/core": ">=6.7.0.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Swag\\McpDevTools\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Swag\\McpDevTools\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "@php bin/run.php phpunit",
+        "phpstan": "@php bin/run.php phpstan analyse --memory-limit=2G -vv",
+        "cs": "@php bin/run.php php-cs-fixer fix --dry-run --diff",
+        "cs-fix": "@php bin/run.php php-cs-fixer fix -v",
+        "ci": [
+            "@phpstan",
+            "@cs",
+            "@test"
+        ]
+    },
+    "scripts-descriptions": {
+        "test": "Runs the PHPUnit test suite",
+        "phpstan": "Runs PHPStan for static analysis",
+        "cs": "Runs the code style check",
+        "cs-fix": "Runs the code style fixer and fixes issues if possible",
+        "ci": "Runs all CI checks"
+    }
+}

@@ -1,0 +1,22 @@
+includes:
+    - __SHOPWARE_CORE_DIR__/DevOps/StaticAnalyze/PHPStan/common.neon
+
+parameters:
+    tmpDir: __PHPSTAN_TMP_DIR__
+    paths:
+        - src
+        - tests
+
+    bootstrapFiles:
+        - __SHOPWARE_CORE_DIR__/DevOps/StaticAnalyze/phpstan-bootstrap.php
+
+    symfony:
+        constantHassers: false
+
+    ignoreErrors:
+        -
+            identifier: new.deprecatedClass
+            path: src/SwagMcpDevToolsBundle.php
+        -
+            identifier: method.deprecatedClass
+            path: src/SwagMcpDevToolsBundle.php

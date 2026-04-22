@@ -1,0 +1,110 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  COMPOSER_ALLOW_SUPERUSER: 1
+  COMPOSER_PLUGIN_LOADER: 1
+  PHP_VERSION: "8.4"
+  SHOPWARE_VERSION: poc/mcp-bundle
+  EXTRA_REPOSITORIES: |
+    {
+      "${{ github.event.repository.name }}": {
+        "type": "path",
+        "url": "custom/bundles/${{ github.event.repository.name }}",
+        "symlink": true
+      }
+    }
+  EXPECTED_MCP_CAPABILITIES: |
+    swag-dev-tools-log-stream
+    swag-dev-tools-log-search
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
+
+jobs:
+  phpstan:
+    name: PHPStan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: shopware/github-actions/setup-extension@main
+        with:
+          extensionName: ${{ github.event.repository.name }}
+          install: false
+          phpVersion: ${{ env.PHP_VERSION }}
+          shopwareVersion: ${{ env.SHOPWARE_VERSION }}
+          extraRepositories: ${{ env.EXTRA_REPOSITORIES }}
+
+      - name: Register bundle
+        run: |
+          echo "Swag\\\\McpDevTools\\\\SwagMcpDevToolsBundle::class => ['all' => true]," >> config/bundles.php
+          symfony console cache:clear
+
+      - name: PHPStan
+        run: symfony composer -d custom/bundles/${{ github.event.repository.name }} run phpstan
+
+  codestyle:
+    name: Code Style
+    runs-on: ubuntu-latest
+    steps:
+      - uses: shopware/github-actions/cs-fixer@main
+        with:
+          rules: ""
+
+  phpunit:
+    name: PHPUnit (unit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: shopware/github-actions/setup-extension@main
+        with:
+          extensionName: ${{ github.event.repository.name }}
+          install: false
+          phpVersion: ${{ env.PHP_VERSION }}
+          shopwareVersion: ${{ env.SHOPWARE_VERSION }}
+          extraRepositories: ${{ env.EXTRA_REPOSITORIES }}
+
+      - name: Register bundle
+        run: |
+          echo "Swag\\\\McpDevTools\\\\SwagMcpDevToolsBundle::class => ['all' => true]," >> config/bundles.php
+          symfony console cache:clear
+
+      - name: PHPUnit (unit)
+        run: symfony composer -d custom/bundles/${{ github.event.repository.name }} run test -- --testsuite unit
+
+  mcp-registration:
+    name: MCP Tool Registration
+    runs-on: ubuntu-latest
+    env:
+      MCP_SERVER: 1
+    steps:
+      - uses: shopware/github-actions/setup-extension@main
+        with:
+          extensionName: ${{ github.event.repository.name }}
+          install: false
+          phpVersion: ${{ env.PHP_VERSION }}
+          shopwareVersion: ${{ env.SHOPWARE_VERSION }}
+          extraRepositories: ${{ env.EXTRA_REPOSITORIES }}
+
+      - name: Register bundle
+        run: |
+          echo "Swag\\\\McpDevTools\\\\SwagMcpDevToolsBundle::class => ['all' => true]," >> config/bundles.php
+          symfony console cache:clear
+
+      - name: Assert dev MCP tools are registered
+        run: |
+          set -euo pipefail
+          output=$(symfony console debug:mcp)
+          echo "$output"
+          missing=()
+          while IFS= read -r name; do
+            [ -z "$name" ] && continue
+            grep -Fq "$name" <<< "$output" || missing+=("$name")
+          done <<< "$EXPECTED_MCP_CAPABILITIES"
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing MCP capabilities: ${missing[*]}"
+            exit 1
+          fi

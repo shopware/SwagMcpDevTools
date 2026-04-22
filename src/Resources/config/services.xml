@@ -1,0 +1,28 @@
+<?xml version="1.0" ?>
+<container xmlns="http://symfony.com/schema/dic/services"
+           xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xsi:schemaLocation="http://symfony.com/schema/dic/services http://symfony.com/schema/dic/services/services-1.0.xsd">
+
+    <services>
+
+        <service id="Swag\McpDevTools\Mcp\Tool\LogStreamTool">
+            <argument>%kernel.logs_dir%</argument>
+            <argument>%kernel.environment%</argument>
+            <tag name="shopware.mcp.tool"/>
+            <tag name="shopware.feature" flag="MCP_SERVER"/>
+        </service>
+
+        <service id="Swag\McpDevTools\Mcp\Tool\LogSearchTool">
+            <argument>%kernel.logs_dir%</argument>
+            <argument>%kernel.environment%</argument>
+            <tag name="shopware.mcp.tool"/>
+            <tag name="shopware.feature" flag="MCP_SERVER"/>
+        </service>
+
+        <service id="Swag\McpDevTools\Mcp\Prompt\DevToolsContextPrompt">
+            <tag name="shopware.mcp.prompt"/>
+            <tag name="shopware.feature" flag="MCP_SERVER"/>
+        </service>
+
+    </services>
+</container>

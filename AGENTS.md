@@ -57,6 +57,7 @@ Feature-flag guard: each tool service carries `<tag name="shopware.feature" flag
 - Extend `McpToolResponse` (core) — provides `$this->success()`, `$this->error()`, and the 100 KB response guard
 - All tools in this bundle are **read-only**. No `dryRun`, no write paths, no transactions
 - No ACL privilege check. Shopware has no dedicated "read server logs" privilege, and reusing an entity privilege like `log_entry:read` (DAL table, not filesystem) would be semantically wrong. Access is gated by MCP authentication + the per-integration allowlist. Do not inject `McpContextProvider` unless a future tool genuinely needs the `Context`
+- No `#[McpToolRequires]` attributes — there are no ACL privileges to declare for these tools. If a future tool in this bundle does use `requirePrivilege()`, add the corresponding `#[McpToolRequires]` to keep the Admin UI coverage warning accurate
 - Do not read arbitrary paths. Always resolve files inside `%kernel.logs_dir%` and enforce an allowlisted extension (`.log`). Use `basename()` to strip traversal segments
 - Redact sensitive fields aggressively. Field-name redaction (normalized camelCase → snake_case, whole-token match) + value-shape redaction (`Bearer ...`, JWTs, `SW[IU]A...` integration keys). Truncate long string values to 300 chars
 - Cap response sizes. Tail-read from the end of the file, apply limits server-side before serializing

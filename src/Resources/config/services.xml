@@ -24,5 +24,16 @@
             <tag name="shopware.feature" flag="MCP_SERVER"/>
         </service>
 
+        <service id="Swag\McpDevTools\Event\NotificationEventSubscriber">
+            <argument type="service" id="Shopware\Core\Framework\Notification\NotificationService"/>
+            <tag name="kernel.event_subscriber"/>
+        </service>
+
+        <service id="Swag\McpDevTools\Mcp\Tool\NotificationsTool">
+            <argument type="service" id="notification.repository"/>
+            <tag name="shopware.mcp.tool"/>
+            <tag name="shopware.feature" flag="MCP_SERVER"/>
+        </service>
+
     </services>
 </container>

@@ -10,15 +10,16 @@ This bundle provides developer-facing MCP diagnostic tools for Shopware. Its too
 
 ## What belongs here
 
-- Developer/operator diagnostics: log streaming, log search, (future) cache stats, (future) queue depth, (future) cron health
-- Read-only introspection of runtime state that lives on the Shopware host (filesystem, process state)
+- Developer/operator diagnostics: log streaming, log search, background operation notifications, (future) cache stats, (future) queue depth, (future) cron health
+- Introspection of runtime state that lives on the Shopware host (filesystem, process state)
 - Tools that need disk access, OPcache, or other host-level resources the core tools intentionally don't touch
+- Event subscribers that write lightweight completion signals to existing Shopware entities (e.g. `notification`) for consumption by the MCP tools above
 
 ## What does NOT belong here
 
 - Merchant operator workflows (order management, product creation, analytics) — see `SwagMcpMerchantAssistant`
 - Platform primitives (entity CRUD, schema, aggregations, system config) — stay in core
-- Anything that mutates state. This bundle is strictly read-only
+- Business-logic mutations or workflow side-effects. Event subscribers may write to existing notification/log entities, but must not mutate business data
 - Local developer tooling (PHPStan, lint, build scripts) — lives in `shopwareLabs/ai-coding-tools`
 
 ## Tool naming
@@ -28,6 +29,7 @@ All tools use the `swag-dev-tools-` prefix:
 ```
 swag-dev-tools-log-stream
 swag-dev-tools-log-search
+swag-dev-tools-notifications
 ```
 
 Never use `shopware-` (reserved for core) or `merchant-` (reserved for SwagMcpMerchantAssistant).
@@ -55,7 +57,9 @@ Feature-flag guard: each tool service carries `<tag name="shopware.feature" flag
 ## Coding patterns
 
 - Extend `McpToolResponse` (core) — provides `$this->success()`, `$this->error()`, and the 100 KB response guard
-- All tools in this bundle are **read-only**. No `dryRun`, no write paths, no transactions
+- MCP **tools** in this bundle are read-only. No `dryRun`, no write paths, no transactions inside tool invocations
+- **Event subscribers** may write to existing Shopware entities (currently `notification` via `NotificationService`) to persist signals for the tools to read. Use `Context::createDefaultContext()` — `NotificationService::createNotification()` elevates to system scope internally
+- For tools that need to stream progress during long-running waits, declare `RequestContext $context` as the first `__invoke` parameter — the MCP SDK injects it automatically via type hint. Call `$context->getClientGateway()->progress(float, ?float, string)` to send SSE progress notifications; it silently no-ops if the client did not send a `progressToken`
 - No ACL privilege check. Shopware has no dedicated "read server logs" privilege, and reusing an entity privilege like `log_entry:read` (DAL table, not filesystem) would be semantically wrong. Access is gated by MCP authentication + the per-integration allowlist. Do not inject `McpContextProvider` unless a future tool genuinely needs the `Context`
 - No `#[McpToolRequires]` attributes — there are no ACL privileges to declare for these tools. If a future tool in this bundle does use `requirePrivilege()`, add the corresponding `#[McpToolRequires]` to keep the Admin UI coverage warning accurate
 - Do not read arbitrary paths. Always resolve files inside `%kernel.logs_dir%` and enforce an allowlisted extension (`.log`). Use `basename()` to strip traversal segments
@@ -64,9 +68,12 @@ Feature-flag guard: each tool service carries `<tag name="shopware.feature" flag
 
 ## Tests
 
-Unit tests live in `tests/unit/Tool/`. Create a temp log directory in `setUp()`, write fake Monolog lines, invoke the tool, assert on the JSON response. Mock `McpContextProvider`. Do not use integration test infrastructure — unit tests only.
+Unit tests live in `tests/unit/`. Subdirectories mirror `src/` (`Tool/`, `Event/`). Do not use integration test infrastructure — unit tests only.
 
-Pattern assertions for redaction go through a `#[DataProvider]` with positive + negative cases (`password` → redact; `monkey` → pass).
+- **Tool tests** — mock `EntityRepository` and `RequestContext`/`ClientGateway`. For file-based tools, create a temp log directory in `setUp()`, write fake Monolog lines, invoke the tool, assert on the JSON response
+- **Event subscriber tests** — mock `NotificationService`, construct events with mocked entities, call the handler directly, assert `createNotification` was called with expected params
+- Pattern assertions for redaction go through a `#[DataProvider]` with positive + negative cases (`password` → redact; `monkey` → pass)
+- The `wait=true` path can be tested without real sleeps: use `timeout=0` to force immediate timeout (loop body never executes), or mock the repository to return data on the first call so the tool returns before any `sleep()`
 
 ## Security layers
 

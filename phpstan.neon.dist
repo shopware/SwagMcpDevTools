@@ -20,3 +20,27 @@ parameters:
         -
             identifier: method.deprecatedClass
             path: src/SwagMcpDevToolsBundle.php
+        -
+            identifier: parameter.deprecatedClass
+            path: src/Mcp/Tool/NotificationsTool.php
+        -
+            identifier: property.deprecatedClass
+            path: src/Mcp/Tool/NotificationsTool.php
+        -
+            identifier: varTag.deprecatedClass
+            path: src/Mcp/Tool/NotificationsTool.php
+        -
+            identifier: method.deprecatedClass
+            path: src/Mcp/Tool/NotificationsTool.php
+        -
+            identifier: missingType.generics
+            path: tests
+        -
+            identifier: return.deprecatedClass
+            path: tests
+        -
+            identifier: classConstant.deprecatedClass
+            path: tests
+        -
+            identifier: property.deprecatedClass
+            path: tests

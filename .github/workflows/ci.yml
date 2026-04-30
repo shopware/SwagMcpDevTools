@@ -33,6 +33,7 @@ env:
   EXPECTED_MCP_CAPABILITIES: |
     swag-dev-tools-log-stream
     swag-dev-tools-log-search
+    swag-dev-tools-notifications
 
 concurrency:
   group: ci-${{ github.ref }}

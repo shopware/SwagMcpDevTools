@@ -36,19 +36,10 @@ parameters:
             identifier: missingType.generics
             path: tests
         -
-            identifier: method.unresolvableReturnType
-            path: tests
-        -
             identifier: return.deprecatedClass
             path: tests
         -
             identifier: classConstant.deprecatedClass
-            path: tests
-        -
-            identifier: varTag.deprecatedClass
-            path: tests
-        -
-            identifier: method.deprecatedClass
             path: tests
         -
             identifier: property.deprecatedClass

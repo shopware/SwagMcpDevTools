@@ -21,7 +21,9 @@ use Swag\McpDevTools\Mcp\Tool\NotificationsTool;
 #[CoversClass(NotificationsTool::class)]
 class NotificationsToolTest extends TestCase
 {
-    /** @var MockObject&EntityRepository<EntityCollection<NotificationEntity>> */
+    /**
+     * @var MockObject&EntityRepository<EntityCollection<NotificationEntity>>
+     */
     private MockObject&EntityRepository $repository;
 
     private NotificationsTool $tool;
@@ -46,7 +48,7 @@ class NotificationsToolTest extends TestCase
 
     public function testReturnsNotifications(): void
     {
-        $notification = $this->makeNotification('abc123', 'success', "Indexer 'product.indexer' finished.");
+        $notification = $this->makeNotification('abc123', 'success', 'Indexer \'product.indexer\' finished.');
         $this->mockSearchResult(new EntityCollection([$notification]));
 
         $data = $this->invoke($this->makeContext());
@@ -55,14 +57,14 @@ class NotificationsToolTest extends TestCase
         static::assertSame(1, $data['data']['count']);
         static::assertSame('abc123', $data['data']['notifications'][0]['id']);
         static::assertSame('success', $data['data']['notifications'][0]['status']);
-        static::assertSame("Indexer 'product.indexer' finished.", $data['data']['notifications'][0]['message']);
+        static::assertSame('Indexer \'product.indexer\' finished.', $data['data']['notifications'][0]['message']);
         static::assertNotNull($data['data']['timestamp']);
     }
 
     public function testPassesSinceFilterWhenProvided(): void
     {
         $this->repository
-            ->expects(static::once())
+            ->expects($this->once())
             ->method('search')
             ->with(
                 static::callback(static fn (Criteria $c): bool => $c->getFilters() !== []),

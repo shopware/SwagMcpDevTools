@@ -3,6 +3,7 @@
 namespace Swag\McpDevTools\Mcp\Tool;
 
 use Mcp\Capability\Attribute\McpTool;
+use Mcp\Schema\Enum\LoggingLevel;
 use Mcp\Server\RequestContext;
 use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
@@ -45,6 +46,9 @@ class NotificationsTool extends McpToolResponse
         while ($elapsed < $timeout) {
             $result = $this->fetchNotifications($since, $limit);
             if ($result['count'] > 0) {
+                if (\Fiber::getCurrent() !== null) {
+                    $client->log(LoggingLevel::Info, $result['notifications'], 'swag-dev-tools');
+                }
                 $client->progress(100.0, 100.0, 'Notification received.');
 
                 return $this->success($result);

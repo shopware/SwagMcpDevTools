@@ -39,11 +39,11 @@ class NotificationEventSubscriberTest extends TestCase
 
     public function testOnIndexerFinishedCreatesSuccessNotification(): void
     {
-        $this->notificationService->expects(static::once())
+        $this->notificationService->expects($this->once())
             ->method('createNotification')
             ->with(
-                static::callback(static fn (array $data): bool =>
-                    $data['status'] === 'success'
+                static::callback(
+                    static fn (array $data): bool => $data['status'] === 'success'
                     && str_contains($data['message'], 'product.indexer')
                     && $data['adminOnly'] === false
                     && $data['requiredPrivileges'] === []
@@ -56,11 +56,11 @@ class NotificationEventSubscriberTest extends TestCase
 
     public function testOnImportExportFinishedCreatesSuccessNotificationWhenSucceeded(): void
     {
-        $this->notificationService->expects(static::once())
+        $this->notificationService->expects($this->once())
             ->method('createNotification')
             ->with(
-                static::callback(static fn (array $data): bool =>
-                    $data['status'] === 'success'
+                static::callback(
+                    static fn (array $data): bool => $data['status'] === 'success'
                     && str_contains($data['message'], 'Products')
                     && str_contains($data['message'], '500')
                     && str_contains($data['message'], 'succeeded')
@@ -75,7 +75,7 @@ class NotificationEventSubscriberTest extends TestCase
 
     public function testOnImportExportFinishedCreatesInfoNotificationOnNonSuccess(): void
     {
-        $this->notificationService->expects(static::once())
+        $this->notificationService->expects($this->once())
             ->method('createNotification')
             ->with(
                 static::callback(static fn (array $data): bool => $data['status'] === 'info'),
@@ -89,7 +89,7 @@ class NotificationEventSubscriberTest extends TestCase
 
     public function testOnImportExportFinishedFallsBackToUnknownWhenProfileNameMissing(): void
     {
-        $this->notificationService->expects(static::once())
+        $this->notificationService->expects($this->once())
             ->method('createNotification')
             ->with(
                 static::callback(static fn (array $data): bool => str_contains($data['message'], 'unknown')),

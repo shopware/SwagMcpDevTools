@@ -6,7 +6,7 @@ use Mcp\Capability\Attribute\McpPrompt;
 
 #[McpPrompt(
     name: 'swag-dev-tools-context',
-    description: 'Disambiguates the three log-like data sources in Shopware: Monolog files on disk (this bundle), the log_entry DAL table, and business events. Pull this when the user asks about "logs" and it is not obvious which surface they mean.',
+    description: 'Disambiguates the four developer data surfaces in Shopware: Monolog files on disk, the log_entry DAL table, business events, and background operation notifications (indexer/import completions). Pull this when the user asks about "logs" or "notifications" and it is not obvious which surface they mean.',
 )]
 class DevToolsContextPrompt
 {
@@ -56,6 +56,22 @@ class DevToolsContextPrompt
 - "Which events fire when an order is placed?"
 - "What business events are available?"
 
+## 4. Background operation notifications — this bundle
+
+**Tool:** `swag-dev-tools-notifications`
+**Source:** Shopware `notification` entity (same data as the Admin bell icon)
+**Contains:** completion signals from long-running background processes: entity indexer runs, import/export jobs.
+
+**Use when the user asks:**
+- "Tell me when the indexing is done"
+- "Wait for the import to finish"
+- "Are there any new notifications?" / "Did the reindex complete?"
+- After triggering `bin/console dal:refresh:index` or an import job
+
+**Polling pattern:** Pass the `timestamp` value from a previous response back as `since` to get only new notifications. This avoids re-reading events you have already seen.
+
+**Wait-until pattern:** Set `wait=true` to block until a notification arrives (up to `timeout` seconds). Progress updates stream via SSE so the connection stays alive. Example: trigger `dal:refresh:index`, then call with `wait=true` — you will be notified the moment the indexer finishes.
+
 ## How to disambiguate
 
 If the user says **"logs"** with no other context, default to **Monolog files** (`swag-dev-tools-log-stream`). That is what "looking at the server logs" almost always means. Confirm with the user if the question is ambiguous.
@@ -63,6 +79,8 @@ If the user says **"logs"** with no other context, default to **Monolog files** 
 If the user says **"the log_entry table"** or **"the Admin log view"**, use `shopware-entity-search` on `log_entry` — do NOT open a file.
 
 If the user wants to **count** or **aggregate** log lines, use `shopware-entity-aggregate` on `log_entry` — the file-based tools stream raw text and are not suited for aggregation.
+
+If the user asks about **"notifications"**, **"when will it be done"**, or **"did the indexer finish"**, use `swag-dev-tools-notifications` — do NOT use the log tools.
 PROMPT,
             ],
         ];

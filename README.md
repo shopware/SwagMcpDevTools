@@ -20,17 +20,17 @@ No ACL privilege is required. Access control for these tools is enforced by the 
 |------------|-------------|
 | `swag-dev-tools-log-stream` | Tool — read recent entries from a Monolog log **file** on disk (defaults to `var/log/{env}.log`). Filter by minimum level and ISO-8601 since timestamp. |
 | `swag-dev-tools-log-search` | Tool — search a Monolog log **file** for entries matching a substring. Optionally narrow by minimum level and file name. |
-| `swag-dev-tools-context` | Prompt — disambiguates Monolog files vs the `log_entry` DAL table vs business events. Pull this when "logs" is ambiguous. |
+| `swag-dev-tools-notifications` | Tool — poll for background operation notifications (indexer completions, import/export results). Supports one-shot polling and a blocking `wait=true` mode that streams SSE progress updates until a notification arrives. |
+| `swag-dev-tools-context` | Prompt — disambiguates Monolog files, the `log_entry` DAL table, business events, and background operation notifications. Pull this when "logs" or "notifications" is ambiguous. |
 
-Both tools are **read-only**, parse Monolog's default line format, and redact sensitive fields (password, token, secret, api_key, Authorization headers, Bearer tokens, JWTs, Shopware `SWIA`/`SWUA` integration keys). Values longer than 300 characters are truncated.
+The log tools are **read-only**, parse Monolog's default line format, and redact sensitive fields (password, token, secret, api_key, Authorization headers, Bearer tokens, JWTs, Shopware `SWIA`/`SWUA` integration keys). Values longer than 300 characters are truncated.
 
-### "Logs" in Shopware — which one do you want?
-
-"Logs" can mean three different things. This bundle covers **only** the first row:
+### Which surface do you want?
 
 | I want to… | Use | What it is |
 |---|---|---|
 | See runtime errors, stack traces, PHP warnings, deprecations, HTTP 500 details | `swag-dev-tools-log-stream` / `-log-search` | Monolog files on disk (`var/log/*.log`) — the full runtime stream |
+| Know when indexing or an import/export finished | `swag-dev-tools-notifications` | Shopware notification entity — same data as the Admin bell icon |
 | See the Admin UI's structured log viewer entries | `shopware-entity-search` on `log_entry` | DAL entity; typically business-event logs + notification writes. **Not** a full mirror of the Monolog stream. |
 | Count or aggregate log entries | `shopware-entity-aggregate` on `log_entry` | Same DAL entity, aggregation path |
 | See which business events exist (not runtime occurrences) | read resource `shopware://business-events` | Catalog of dispatchable events for Flow Builder |
@@ -54,6 +54,11 @@ If an LLM is using these tools against a fresh session and the question is ambig
 - "Search dev.log for deprecation warnings" — `swag-dev-tools-log-search` with `query: "deprecated"`, `file: "dev.log"`
 
 Only files within `%kernel.logs_dir%` with a `.log` extension are readable. Path traversal (`../`) is prevented.
+
+**Monitor background operations**
+- "Run `dal:refresh:index` and tell me when it's done" — trigger the CLI command, then call `swag-dev-tools-notifications` with `wait: true`; SSE progress updates keep the connection alive until the indexer finishes
+- "Did the product import complete?" — `swag-dev-tools-notifications` (one-shot check)
+- "Check for new notifications every minute" — `swag-dev-tools-notifications` with `since` set to the previous `timestamp` value; pass the returned `timestamp` back on each call to get only genuinely new events
 
 ## Installation
 

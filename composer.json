@@ -6,7 +6,7 @@
     "license": "MIT",
     "require": {
         "php": "^8.2",
-        "shopware/core": ">=6.7.0.0"
+        "shopware/core": "~6.7"
     },
     "autoload": {
         "psr-4": {

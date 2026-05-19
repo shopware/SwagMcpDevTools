@@ -7,6 +7,7 @@ use Shopware\Core\Framework\Mcp\Tool\McpToolResponse;
 
 #[McpTool(
     name: 'swag-dev-tools-log-search',
+    title: 'Log Search',
     description: 'Search a Monolog application log FILE on disk (default: var/log/{env}.log) for entries matching a substring. Optionally narrow by minimum level (DEBUG/INFO/NOTICE/WARNING/ERROR/CRITICAL/ALERT/EMERGENCY) and file name. Scans from the most recent entries backwards. Use for "find the stack trace for exception X", "which log lines mention correlation-id Y?", "did we log anything about payment webhook failures?". DO NOT use this for the log_entry database table — query that with shopware-entity-search on entity "log_entry" plus a ContainsFilter on the message field instead.',
 )]
 class LogSearchTool extends McpToolResponse

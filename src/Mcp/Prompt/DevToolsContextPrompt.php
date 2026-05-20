@@ -6,6 +6,7 @@ use Mcp\Capability\Attribute\McpPrompt;
 
 #[McpPrompt(
     name: 'swag-dev-tools-context',
+    title: 'Dev Tools Context',
     description: 'Disambiguates the four developer data surfaces in Shopware: Monolog files on disk, the log_entry DAL table, business events, and background operation notifications (indexer/import completions). Pull this when the user asks about "logs" or "notifications" and it is not obvious which surface they mean.',
 )]
 class DevToolsContextPrompt

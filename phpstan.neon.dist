@@ -50,9 +50,3 @@ parameters:
         -
             identifier: shopware.unexpectedTestCovers
             path: tests
-        # Some Shopware entities (e.g. NotificationEntity, ImportExportLogEntity,
-        # Progress) are flagged as too simple to mock; mocking them keeps the
-        # tests isolated and is intentional here.
-        -
-            identifier: shopware.mockingSimpleObjects
-            path: tests

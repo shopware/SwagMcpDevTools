@@ -42,8 +42,11 @@ parameters:
             identifier: property.deprecatedClass
             path: tests
         # NotificationEntity is deprecated only for a v6.8 class-hierarchy change
-        # (its parent class changes); it remains the tool's return type, so tests
-        # must still instantiate it and call its setters.
+        # (its parent class changes); it remains the tool's return type and FQCN,
+        # so tests must still instantiate it and call its setters. We already use
+        # the forward-compatible class — there is nothing to migrate to.
+        # TODO: remove these two ignores once we target 6.8.0 (the deprecation,
+        # and thus these patterns, no longer applies — they become unmatched).
         -
             identifier: new.deprecatedClass
             path: tests/unit/Tool/NotificationsToolTest.php

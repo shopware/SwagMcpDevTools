@@ -20,7 +20,7 @@ env:
   COMPOSER_ALLOW_SUPERUSER: 1
   COMPOSER_PLUGIN_LOADER: 1
   PHP_VERSION: "8.4"
-  SHOPWARE_VERSION: poc/mcp-bundle
+  SHOPWARE_VERSION: trunk
   # See header comment: CI uses custom/plugins/ because setup-extension hardcodes it.
   EXTRA_REPOSITORIES: |
     {

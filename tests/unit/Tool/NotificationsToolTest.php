@@ -108,11 +108,11 @@ class NotificationsToolTest extends TestCase
 
     private function makeNotification(string $id, string $status, string $message): NotificationEntity
     {
-        $entity = $this->createMock(NotificationEntity::class);
-        $entity->method('getId')->willReturn($id);
-        $entity->method('getStatus')->willReturn($status);
-        $entity->method('getMessage')->willReturn($message);
-        $entity->method('getCreatedAt')->willReturn(new \DateTimeImmutable('2026-04-30T10:00:00+00:00'));
+        $entity = new NotificationEntity();
+        $entity->setId($id);
+        $entity->setStatus($status);
+        $entity->setMessage($message);
+        $entity->setCreatedAt(new \DateTimeImmutable('2026-04-30T10:00:00+00:00'));
 
         return $entity;
     }

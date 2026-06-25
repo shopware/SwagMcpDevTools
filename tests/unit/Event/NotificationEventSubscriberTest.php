@@ -107,16 +107,18 @@ class NotificationEventSubscriberTest extends TestCase
         int $records,
         string $state,
     ): ImportExportAfterProcessFinishedEvent {
-        $logEntity = $this->createMock(ImportExportLogEntity::class);
-        $logEntity->method('getActivity')->willReturn($activity);
-        $logEntity->method('getProfileName')->willReturn($profileName);
-        $logEntity->method('getRecords')->willReturn($records);
-        $logEntity->method('getState')->willReturn($state);
+        $logEntity = new ImportExportLogEntity();
+        $logEntity->setActivity($activity);
+        if ($profileName !== null) {
+            $logEntity->setProfileName($profileName);
+        }
+        $logEntity->setRecords($records);
+        $logEntity->setState($state);
 
         return new ImportExportAfterProcessFinishedEvent(
             Context::createDefaultContext(),
             $logEntity,
-            $this->createMock(Progress::class),
+            new Progress($activity, $state),
         );
     }
 }

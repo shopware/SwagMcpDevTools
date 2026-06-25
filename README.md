@@ -1,7 +1,7 @@
 # SwagMcpDevTools
 
-> **⚠️ Experimental.** This bundle is a proof of concept. API, tool names, and
-> parameter shapes may change without notice. Not for production use yet.
+> [!WARNING]
+> **Experimental. May be removed at any time.** This bundle is a proof of concept and is **not** covered by any stability or backwards-compatibility guarantee. It can be discontinued, archived, or removed without notice, particularly in favor of **Shopware Copilot**, which is the official, supported direction for AI-assisted workflows. API, tool names, and parameter shapes may change without notice. Do not rely on it for production-critical processes.
 
 Developer-oriented MCP tools for remote Shopware instance introspection. Installs as a Symfony bundle alongside the core MCP server and extends it with read-only diagnostic tools — log streaming and log search over the existing `/api/_mcp` endpoint. Fills the gap the host-side `ai-coding-tools` can't cover: environments it cannot reach (SaaS, PaaS, staging, on-prem).
 

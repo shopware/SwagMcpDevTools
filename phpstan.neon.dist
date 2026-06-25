@@ -39,11 +39,17 @@ parameters:
             identifier: return.deprecatedClass
             path: tests
         -
-            identifier: classConstant.deprecatedClass
-            path: tests
-        -
             identifier: property.deprecatedClass
             path: tests
+        # NotificationEntity is deprecated only for a v6.8 class-hierarchy change
+        # (its parent class changes); it remains the tool's return type, so tests
+        # must still instantiate it and call its setters.
+        -
+            identifier: new.deprecatedClass
+            path: tests/unit/Tool/NotificationsToolTest.php
+        -
+            identifier: method.deprecatedClass
+            path: tests/unit/Tool/NotificationsToolTest.php
         # Shopware core's TestRuleHelper hardcodes the unit-test namespaces it
         # recognizes (Shopware\Tests\Unit\, ...) and does not include plugin
         # namespaces, so it wrongly rejects #[CoversClass] on our unit tests.

@@ -31,5 +31,95 @@
             <tag name="shopware.mcp.tool"/>
         </service>
 
+        <!-- Scaffolding: discovery + skill loader tools -->
+        <service id="Swag\McpDevTools\Mcp\Tool\ListExtensionsTool">
+            <argument type="service" id="plugin.repository"/>
+            <argument type="service" id="app.repository"/>
+            <argument>%kernel.project_dir%</argument>
+            <tag name="shopware.mcp.tool"/>
+        </service>
+
+        <service id="Swag\McpDevTools\Mcp\Tool\ListSkillsTool">
+            <argument type="service" id="plugin.repository"/>
+            <argument type="service" id="app.repository"/>
+            <argument>%kernel.project_dir%</argument>
+            <tag name="shopware.mcp.tool"/>
+        </service>
+
+        <service id="Swag\McpDevTools\Mcp\Tool\LoadSkillTool">
+            <argument type="service" id="plugin.repository"/>
+            <argument type="service" id="app.repository"/>
+            <argument>%kernel.project_dir%</argument>
+            <tag name="shopware.mcp.tool"/>
+        </service>
+
+        <!-- Scaffolding: single dispatcher tool over the builders tagged below -->
+        <service id="Swag\McpDevTools\Mcp\Tool\ScaffoldTool">
+            <argument type="tagged_iterator" tag="swag.dev_tools.scaffold"/>
+            <tag name="shopware.mcp.tool"/>
+        </service>
+
+        <!-- Scaffolding: tooling suggestion prompt -->
+        <service id="Swag\McpDevTools\Mcp\Prompt\SuggestToolingPrompt">
+            <tag name="shopware.mcp.prompt"/>
+        </service>
+
+        <!-- Scaffold builders: collected by ScaffoldTool via the swag.dev_tools.scaffold
+             tag; NOT registered as standalone MCP prompts. -->
+        <service id="Swag\McpDevTools\Mcp\Prompt\Scaffold\CreatePluginPrompt">
+            <tag name="swag.dev_tools.scaffold"/>
+        </service>
+        <service id="Swag\McpDevTools\Mcp\Prompt\Scaffold\CreateThemePrompt">
+            <tag name="swag.dev_tools.scaffold"/>
+        </service>
+        <service id="Swag\McpDevTools\Mcp\Prompt\Scaffold\CreateAppPrompt">
+            <tag name="swag.dev_tools.scaffold"/>
+        </service>
+        <service id="Swag\McpDevTools\Mcp\Prompt\Scaffold\CreateStorefrontControllerPrompt">
+            <tag name="swag.dev_tools.scaffold"/>
+        </service>
+        <service id="Swag\McpDevTools\Mcp\Prompt\Scaffold\CreateAdminEndpointPrompt">
+            <tag name="swag.dev_tools.scaffold"/>
+        </service>
+        <service id="Swag\McpDevTools\Mcp\Prompt\Scaffold\CreateStoreApiEndpointPrompt">
+            <tag name="swag.dev_tools.scaffold"/>
+        </service>
+        <service id="Swag\McpDevTools\Mcp\Prompt\Scaffold\CreateEntityPrompt">
+            <tag name="swag.dev_tools.scaffold"/>
+        </service>
+        <service id="Swag\McpDevTools\Mcp\Prompt\Scaffold\CreateMigrationPrompt">
+            <tag name="swag.dev_tools.scaffold"/>
+        </service>
+        <service id="Swag\McpDevTools\Mcp\Prompt\Scaffold\CreateSubscriberPrompt">
+            <tag name="swag.dev_tools.scaffold"/>
+        </service>
+        <service id="Swag\McpDevTools\Mcp\Prompt\Scaffold\CreateAdminModulePrompt">
+            <tag name="swag.dev_tools.scaffold"/>
+        </service>
+        <service id="Swag\McpDevTools\Mcp\Prompt\Scaffold\CreateCmsElementPrompt">
+            <tag name="swag.dev_tools.scaffold"/>
+        </service>
+        <service id="Swag\McpDevTools\Mcp\Prompt\Scaffold\CreatePluginConfigPrompt">
+            <tag name="swag.dev_tools.scaffold"/>
+        </service>
+        <service id="Swag\McpDevTools\Mcp\Prompt\Scaffold\CreatePluginExtensionPrompt">
+            <tag name="swag.dev_tools.scaffold"/>
+        </service>
+        <service id="Swag\McpDevTools\Mcp\Prompt\Scaffold\CreateScheduledTaskPrompt">
+            <tag name="swag.dev_tools.scaffold"/>
+        </service>
+        <service id="Swag\McpDevTools\Mcp\Prompt\Scaffold\CreateMessageHandlerPrompt">
+            <tag name="swag.dev_tools.scaffold"/>
+        </service>
+        <service id="Swag\McpDevTools\Mcp\Prompt\Scaffold\CreateConsoleCommandPrompt">
+            <tag name="swag.dev_tools.scaffold"/>
+        </service>
+        <service id="Swag\McpDevTools\Mcp\Prompt\Scaffold\CreateRulePrompt">
+            <tag name="swag.dev_tools.scaffold"/>
+        </service>
+        <service id="Swag\McpDevTools\Mcp\Prompt\Scaffold\CreateFlowActionPrompt">
+            <tag name="swag.dev_tools.scaffold"/>
+        </service>
+
     </services>
 </container>

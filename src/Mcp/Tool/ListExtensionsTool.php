@@ -8,6 +8,7 @@ use Shopware\Core\Framework\App\AppEntity;
 use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
+use Shopware\Core\Framework\Mcp\Attribute\McpToolGroup;
 use Shopware\Core\Framework\Mcp\Tool\McpToolResponse;
 use Shopware\Core\Framework\Plugin\PluginCollection;
 use Shopware\Core\Framework\Plugin\PluginEntity;
@@ -17,6 +18,7 @@ use Shopware\Core\Framework\Plugin\PluginEntity;
     title: 'List Extensions',
     description: 'List installed Shopware extensions (plugins and apps) with their absolute rootPath, PSR-4 namespace, base class, whether they are managed by Composer, and a "writable" flag. Use this FIRST when scaffolding code into an existing extension so you know where files belong and which namespace to use. writable=false means the extension lives in vendor/ (composer-managed) and must NOT be edited in place — extend it from your own custom plugin instead. Composer-installed plugins are included (unlike a plain custom/plugins folder scan).',
 )]
+#[McpToolGroup('dev-extensions')]
 class ListExtensionsTool extends McpToolResponse
 {
     /**

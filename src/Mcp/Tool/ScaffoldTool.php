@@ -5,6 +5,7 @@ namespace Swag\McpDevTools\Mcp\Tool;
 use Mcp\Capability\Attribute\McpPrompt;
 use Mcp\Capability\Attribute\McpTool;
 use Shopware\Core\Framework\Mcp\Attribute\McpToolDependsOn;
+use Shopware\Core\Framework\Mcp\Attribute\McpToolGroup;
 use Shopware\Core\Framework\Mcp\Tool\McpToolResponse;
 use Swag\McpDevTools\Mcp\Prompt\Scaffold\AbstractScaffoldPrompt;
 
@@ -27,6 +28,7 @@ use Swag\McpDevTools\Mcp\Prompt\Scaffold\AbstractScaffoldPrompt;
     title: 'Scaffold Shopware Code',
     description: 'Generate Shopware extension code the right way. Call with no arguments to list every available scaffold (plugin, theme, app, storefront/admin/store-api endpoints, custom entity, migration, subscriber, admin module, cms element, plugin config, scheduled task, message handler, console command, rule, flow action, and extend-plugin) plus the argument names each accepts. Then call again with type=<type> and options (a JSON object keyed by those argument names, e.g. {"target":"SwagFoo","aclPrivileges":"product:read"}) to get opinionated, convention-correct instructions to follow. Resolve the target extension first with swag-dev-tools-list-extensions; the server returns instructions only and never writes files.',
 )]
+#[McpToolGroup('dev-scaffold')]
 #[McpToolDependsOn('swag-dev-tools-list-extensions')]
 #[McpToolDependsOn('swag-dev-tools-list-skills')]
 #[McpToolDependsOn('swag-dev-tools-load-skill')]

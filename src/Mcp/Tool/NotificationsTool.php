@@ -10,6 +10,7 @@ use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Filter\RangeFilter;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Sorting\FieldSorting;
+use Shopware\Core\Framework\Mcp\Attribute\McpToolGroup;
 use Shopware\Core\Framework\Mcp\Tool\McpToolResponse;
 use Shopware\Core\Framework\Notification\NotificationCollection;
 use Shopware\Core\Framework\Notification\NotificationEntity;
@@ -19,6 +20,7 @@ use Shopware\Core\Framework\Notification\NotificationEntity;
     title: 'Notifications',
     description: 'Poll for Shopware background operation notifications: indexer completions, import/export results. Use after triggering long-running operations like dal:refresh:index or import jobs. Set wait=true to block until a notification arrives — streams progress updates via SSE up to timeout seconds. Use since=<ISO-8601> for incremental polling; pass the returned timestamp as since on the next call to get only new events. DO NOT use this for runtime PHP errors or stack traces — use swag-dev-tools-log-stream instead. DO NOT use this for structured business event logs — query entity "log_entry" with shopware-entity-search instead.',
 )]
+#[McpToolGroup('dev-extensions')]
 class NotificationsTool extends McpToolResponse
 {
     /**

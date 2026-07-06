@@ -8,6 +8,7 @@ use Shopware\Core\Framework\App\AppEntity;
 use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
+use Shopware\Core\Framework\Mcp\Attribute\McpToolGroup;
 use Shopware\Core\Framework\Mcp\Tool\McpToolResponse;
 use Shopware\Core\Framework\Plugin\PluginCollection;
 use Shopware\Core\Framework\Plugin\PluginEntity;
@@ -18,6 +19,7 @@ use Swag\McpDevTools\Mcp\Tool\Concern\LocatesSkills;
     title: 'List Skills',
     description: 'List the Shopware Agent Skills shipped in this project under .agents/skills/ (and any skills shipped by installed extensions). Returns each skill name, description, and source (core or extension). These skills are the authoritative source of truth for Shopware coding conventions — use swag-dev-tools-load-skill to read one before generating or editing code. Returns an empty list on installs that do not ship the source (e.g. production/composer installs).',
 )]
+#[McpToolGroup('dev-skills')]
 class ListSkillsTool extends McpToolResponse
 {
     use LocatesSkills;

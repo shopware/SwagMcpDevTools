@@ -8,6 +8,7 @@ use Shopware\Core\Framework\App\AppEntity;
 use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
+use Shopware\Core\Framework\Mcp\Attribute\McpToolGroup;
 use Shopware\Core\Framework\Mcp\Tool\McpToolResponse;
 use Shopware\Core\Framework\Plugin\PluginCollection;
 use Shopware\Core\Framework\Plugin\PluginEntity;
@@ -18,6 +19,7 @@ use Swag\McpDevTools\Mcp\Tool\Concern\LocatesSkills;
     title: 'Load Skill',
     description: 'Read the body of a Shopware Agent Skill by name (as listed by swag-dev-tools-list-skills), e.g. "shopware-php-code" or "shopware-admin-js". Returns the SKILL.md content — the authoritative Shopware coding guidance. Load the relevant skill BEFORE generating or editing code so the output follows current conventions. Note: these skills target CORE contribution; core-only rules (BC promises, @internal/@final policy, RELEASE_INFO/UPGRADE, OpenAPI JSON under src/Core) do not apply to extension development.',
 )]
+#[McpToolGroup('dev-skills')]
 class LoadSkillTool extends McpToolResponse
 {
     use LocatesSkills;

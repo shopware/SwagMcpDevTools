@@ -3,6 +3,7 @@
 namespace Swag\McpDevTools\Mcp\Tool;
 
 use Mcp\Capability\Attribute\McpTool;
+use Shopware\Core\Framework\Mcp\Attribute\McpToolGroup;
 use Shopware\Core\Framework\Mcp\Tool\McpToolResponse;
 
 #[McpTool(
@@ -10,6 +11,7 @@ use Shopware\Core\Framework\Mcp\Tool\McpToolResponse;
     title: 'Log Stream',
     description: 'Read recent entries from a Monolog application log FILE on disk (default: var/log/{env}.log). Contains the full runtime stream: PHP errors, stack traces, deprecation warnings, framework events, and everything bundles write via Monolog handlers. Filter by minimum level (DEBUG/INFO/NOTICE/WARNING/ERROR/CRITICAL/ALERT/EMERGENCY) and ISO-8601 since timestamp. Use this for "what broke on the server?", "show me the last stack trace", "any PHP deprecations recently?". DO NOT use this for the log_entry database table (structured DAL entity for business events / Admin-visible notifications) — query that with shopware-entity-search on entity "log_entry" instead.',
 )]
+#[McpToolGroup('dev-logs')]
 class LogStreamTool extends McpToolResponse
 {
     public const LEVEL_MAP = [

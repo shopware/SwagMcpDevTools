@@ -14,6 +14,7 @@ This bundle provides developer-facing MCP diagnostic tools for Shopware. Its too
 - Introspection of runtime state that lives on the Shopware host (filesystem, process state)
 - Tools that need disk access, OPcache, or other host-level resources the core tools intentionally don't touch
 - Event subscribers that write lightweight completion signals to existing Shopware entities (e.g. `notification`) for consumption by the MCP tools above
+- **Scaffolding** (`src/Mcp/Prompt/Scaffold/` builders + `src/Mcp/Tool/ScaffoldTool.php`): a single `swag-dev-tools-scaffold` tool returns opinionated, Shopware-accurate instruction templates so a connected coding agent generates code (plugins, entities, endpoints, admin modules, …) with correct DI tags/ACLs/scopes. Call it with no args for the catalog, or `type` + `options` (JSON) for one artifact. The server never writes files. Backed by read-only support tools: `swag-dev-tools-list-extensions` (composer-aware target resolution) and `swag-dev-tools-list-skills`/`-load-skill` (surface core's `.agents/skills/` guidance)
 
 ## What does NOT belong here
 
@@ -30,9 +31,15 @@ All tools use the `swag-dev-tools-` prefix:
 swag-dev-tools-log-stream
 swag-dev-tools-log-search
 swag-dev-tools-notifications
+swag-dev-tools-scaffold                  # single scaffolding tool (catalog + dispatch)
+swag-dev-tools-list-extensions          # scaffolding support tool
+swag-dev-tools-list-skills / -load-skill
+                                         #   (type values: create-plugin, create-entity, extend-plugin, …)
+swag-dev-tools-extend-plugin
+swag-dev-tools-suggest-tooling
 ```
 
-Never use `shopware-` (reserved for core) or `merchant-` (reserved for SwagMcpMerchantAssistant).
+Prompts share the same `swag-dev-tools-` prefix as tools. Never use `shopware-` (reserved for core) or `merchant-` (reserved for SwagMcpMerchantAssistant).
 
 ## Portability
 
@@ -50,13 +57,14 @@ No runtime bundle code contains hard-coded paths — only tooling does.
 
 ## Registration
 
-Tag services with `shopware.mcp.tool` in `src/Resources/config/services.xml`. `McpToolCompilerPass` in core handles DI wiring and MCP server registration automatically — no `scan_dirs` entry needed.
+Tag **tools** with `shopware.mcp.tool` and **prompts** with `shopware.mcp.prompt` in `src/Resources/config/services.xml`. `McpToolCompilerPass` in core handles DI wiring and MCP server registration automatically — no `scan_dirs` entry needed. Scaffold **builders** carry the internal `swag.dev_tools.scaffold` tag (NOT an MCP tag) and are injected into `ScaffoldTool` via a `tagged_iterator`; the support tools take `@plugin.repository`, `@app.repository`, and `%kernel.project_dir%`.
 
 Feature-flag guard: each tool service carries `<tag name="shopware.feature" flag="MCP_SERVER"/>`. `FeatureFlagCompilerPass` removes tools when the flag is off, so the bundle itself does not need a `Feature::has()` check in `build()` (that would run too early, before the flag registry has been populated).
 
 ## Coding patterns
 
 - Extend `McpToolResponse` (core) — provides `$this->success()`, `$this->error()`, and the 100 KB response guard
+- **Scaffold builders** extend `AbstractScaffoldPrompt` and return the single user-message envelope `[['role' => 'user', 'content' => $text]]` from `__invoke`; `ScaffoldTool` unwraps `[0]['content']`. Each keeps its `#[McpPrompt(name:, description:)]` on `__invoke` — `ScaffoldTool` reads it via reflection for the catalog (name → `type` minus the `swag-dev-tools-` prefix, description → summary) and reflects the params for the arg list; they are NOT registered as prompts. Use the shared helpers: `targetResolution()` (resolve-target + plugin-only guardrail), `skillFooter([...])` (authoritative core skills + core-vs-extension caveat), `toolingFooter()` (ai-coding-tools nudge). Cite real core files as "study the equivalent of `src/...`" so guidance works in monorepo and composer layouts alike. Builders must NOT duplicate rules that live in core's `.agents/skills/` — reference them and let the skill win on conflict. To add a scaffold: add a builder class + the `swag.dev_tools.scaffold` tag (no new MCP tool)
 - MCP **tools** in this bundle are read-only. No `dryRun`, no write paths, no transactions inside tool invocations
 - **Event subscribers** may write to existing Shopware entities (currently `notification` via `NotificationService`) to persist signals for the tools to read. Use `Context::createDefaultContext()` — `NotificationService::createNotification()` elevates to system scope internally
 - For tools that need to stream progress during long-running waits, declare `RequestContext $context` as the first `__invoke` parameter — the MCP SDK injects it automatically via type hint. Call `$context->getClientGateway()->progress(float, ?float, string)` to send SSE progress notifications; it silently no-ops if the client did not send a `progressToken`
@@ -68,7 +76,9 @@ Feature-flag guard: each tool service carries `<tag name="shopware.feature" flag
 
 ## Tests
 
-Unit tests live in `tests/unit/`. Subdirectories mirror `src/` (`Tool/`, `Event/`). Do not use integration test infrastructure — unit tests only.
+Unit tests live in `tests/unit/`. Subdirectories mirror `src/` (`Tool/`, `Event/`, `Mcp/Prompt/…`). Do not use integration test infrastructure — unit tests only.
+
+- **Prompt tests** — instantiate the prompt, invoke `__invoke(...)` with sample args, assert the single-user-message envelope (via the `ScaffoldPromptAssertions` trait) and that the content contains the artifact's non-negotiable reminders (e.g. admin-endpoint → `_acl`, store-api → `DecorationPatternException`, extend-plugin → "never edit vendor"). Prompts are pure — no mocks needed. Support tools that read the DAL (`ListExtensionsTool`, skill tools) mock `EntityRepository` and return an `EntitySearchResult`; skill tools also build a temp `.agents/skills/` fixture and assert graceful absence + path-traversal rejection
 
 - **Tool tests** — mock `EntityRepository` and `RequestContext`/`ClientGateway`. For file-based tools, create a temp log directory in `setUp()`, write fake Monolog lines, invoke the tool, assert on the JSON response
 - **Event subscriber tests** — mock `NotificationService`, construct events with mocked entities, call the handler directly, assert `createNotification` was called with expected params

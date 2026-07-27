@@ -82,6 +82,19 @@ If the user says **"the log_entry table"** or **"the Admin log view"**, use `sho
 If the user wants to **count** or **aggregate** log lines, use `shopware-entity-aggregate` on `log_entry` — the file-based tools stream raw text and are not suited for aggregation.
 
 If the user asks about **"notifications"**, **"when will it be done"**, or **"did the indexer finish"**, use `swag-dev-tools-notifications` — do NOT use the log tools.
+
+## Discovering the dev tools (toolsets and search)
+
+The tools in this bundle are deferred and do NOT appear in the default `tools/list`. Reach them in one of two ways:
+
+- Call `shopware-tool-search` with a natural-language query (e.g. "stream logs", "list installed plugins", "scaffold a plugin") to find and inspect matching tools, including deferred ones, then call the tool by name.
+- Or call `shopware-toolset-enable` with a toolset name to add its group to `tools/list` for the session. Use `shopware-toolsets-list` to see what is available.
+
+Dev toolsets:
+- `dev-logs`: log search, log stream
+- `dev-extensions`: list extensions, notifications
+- `dev-skills`: list skills, load skill
+- `dev-scaffold`: scaffold
 PROMPT,
             ],
         ];

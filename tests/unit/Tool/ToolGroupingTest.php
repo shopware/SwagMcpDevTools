@@ -23,7 +23,7 @@ final class ToolGroupingTest extends TestCase
      * @param class-string $toolClass
      */
     #[DataProvider('toolProvider')]
-    public function testToolGroupIsAssigned(string $toolClass, string $expectedGroup, bool $expectedVisible): void
+    public function testToolGroupIsAssigned(string $toolClass, string $expectedGroup): void
     {
         $reflection = new \ReflectionClass($toolClass);
 
@@ -43,10 +43,14 @@ final class ToolGroupingTest extends TestCase
     }
 
     /**
+     * Core derives the advertised (non-deferred) surface from the `discovery`
+     * tool group, so every tool in this bundle is deferred and none may
+     * resurrect the retired per-tool meta[deferred] flag.
+     *
      * @param class-string $toolClass
      */
     #[DataProvider('toolProvider')]
-    public function testToolDeferralMatchesMapping(string $toolClass, string $expectedGroup, bool $expectedVisible): void
+    public function testToolIsDeferred(string $toolClass, string $expectedGroup): void
     {
         $reflection = new \ReflectionClass($toolClass);
 
@@ -59,39 +63,30 @@ final class ToolGroupingTest extends TestCase
 
         $meta = $toolAttributes[0]->newInstance()->meta;
 
-        if ($expectedVisible) {
-            static::assertIsArray(
-                $meta,
-                \sprintf('%s must declare meta to stay visible.', $toolClass),
-            );
-            static::assertFalse(
-                $meta['deferred'] ?? true,
-                \sprintf('%s must be visible (meta[deferred] === false).', $toolClass),
-            );
-
-            return;
-        }
-
-        $deferred = $meta === null || ($meta['deferred'] ?? true) === true;
-        static::assertTrue(
-            $deferred,
-            \sprintf('%s must be deferred by default.', $toolClass),
+        static::assertArrayNotHasKey(
+            'deferred',
+            $meta ?? [],
+            \sprintf(
+                '%s must not use the retired meta[deferred] flag; deferral follows the "%s" toolset group.',
+                $toolClass,
+                $expectedGroup,
+            ),
         );
     }
 
     /**
-     * @return list<array{class-string, string, bool}>
+     * @return array<string, array{class-string, string}>
      */
     public static function toolProvider(): array
     {
         return [
-            'LogSearchTool visible in dev-logs' => [LogSearchTool::class, 'dev-logs', true],
-            'LogStreamTool deferred in dev-logs' => [LogStreamTool::class, 'dev-logs', false],
-            'ListExtensionsTool deferred in dev-extensions' => [ListExtensionsTool::class, 'dev-extensions', false],
-            'NotificationsTool deferred in dev-extensions' => [NotificationsTool::class, 'dev-extensions', false],
-            'ListSkillsTool deferred in dev-skills' => [ListSkillsTool::class, 'dev-skills', false],
-            'LoadSkillTool deferred in dev-skills' => [LoadSkillTool::class, 'dev-skills', false],
-            'ScaffoldTool deferred in dev-scaffold' => [ScaffoldTool::class, 'dev-scaffold', false],
+            'LogSearchTool in dev-logs' => [LogSearchTool::class, 'dev-logs'],
+            'LogStreamTool in dev-logs' => [LogStreamTool::class, 'dev-logs'],
+            'ListExtensionsTool in dev-extensions' => [ListExtensionsTool::class, 'dev-extensions'],
+            'NotificationsTool in dev-extensions' => [NotificationsTool::class, 'dev-extensions'],
+            'ListSkillsTool in dev-skills' => [ListSkillsTool::class, 'dev-skills'],
+            'LoadSkillTool in dev-skills' => [LoadSkillTool::class, 'dev-skills'],
+            'ScaffoldTool in dev-scaffold' => [ScaffoldTool::class, 'dev-scaffold'],
         ];
     }
 }

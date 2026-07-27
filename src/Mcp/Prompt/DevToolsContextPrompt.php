@@ -85,7 +85,7 @@ If the user asks about **"notifications"**, **"when will it be done"**, or **"di
 
 ## Discovering the dev tools (toolsets and search)
 
-Most tools in this bundle are deferred and do NOT appear in the default `tools/list`. Only `swag-dev-tools-log-search` is advertised by default. Reach the rest in one of two ways:
+The tools in this bundle are deferred and do NOT appear in the default `tools/list`. Reach them in one of two ways:
 
 - Call `shopware-tool-search` with a natural-language query (e.g. "stream logs", "list installed plugins", "scaffold a plugin") to find and inspect matching tools, including deferred ones, then call the tool by name.
 - Or call `shopware-toolset-enable` with a toolset name to add its group to `tools/list` for the session. Use `shopware-toolsets-list` to see what is available.

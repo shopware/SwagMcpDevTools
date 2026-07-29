@@ -20,6 +20,15 @@ use Swag\McpDevTools\Mcp\Tool\LoadSkillTool;
  *    skill's instructions ... never the SKILL.md body"). That made it worse: the
  *    negation does not remove the tokens, so all three load_skill fixtures lost to
  *    list-skills and the primary model went from 20/21 to 18/21 on dev-tools.
+ *  - PR #10 removed the overlap instead of negating it, which restored 20/21 but
+ *    left load_skill_entity_definition still losing, exactly as before #9.
+ *
+ * Three list-skills wordings have now been measured against that fixture with no
+ * effect, so the remaining suspect is load-skill's own description: every variant
+ * ever measured pointed at list-skills for the name ("(as listed by ...)", then
+ * "If you don't already know the skill name, ... will tell you"), which is an
+ * invitation to list first, and listing first is precisely what the model does.
+ * Neither description names the other now.
  *
  * The rule this test encodes: describe what a tool DOES, and let the sibling's own
  * description own its verbs. Removing the overlap works; negating it does not.
@@ -90,16 +99,44 @@ final class SkillsToolDescriptionTest extends TestCase
     }
 
     /**
-     * The cross-reference is only safe in this direction: load-skill needs a name it
-     * may not have, so pointing at list-skills earns its keep. The reverse pointer is
-     * what broke tool selection, so it stays deleted.
+     * Neither tool advertises the other. The reverse pointer (list-skills naming
+     * load-skill) broke tool selection outright. This direction looked harmless
+     * because load-skill genuinely may not have a name, but it told the model to
+     * resolve the name first, and resolving the name first is a call to list-skills:
+     * load_skill_entity_definition lost 18 consecutive attempts on the primary that
+     * way, always selecting list-skills with empty input. load-skill now says to call
+     * it directly, which its own runtime error path already backs up.
      */
-    public function testOnlyLoadSkillReferencesItsSibling(): void
+    public function testNeitherDescriptionNamesTheOther(): void
     {
-        static::assertStringContainsString(
+        static::assertStringNotContainsString(
             'swag-dev-tools-list-skills',
             self::descriptionOf(LoadSkillTool::class),
-            'load-skill should still tell the model where to find a skill name it does not know.',
+            'load-skill must not send the model to list-skills before it has even tried the name it was given.',
+        );
+
+        static::assertStringNotContainsString(
+            'swag-dev-tools-load-skill',
+            self::descriptionOf(ListSkillsTool::class),
+            'list-skills must not advertise load-skill; that is what pulled read-a-skill prompts to the index.',
+        );
+    }
+
+    /**
+     * The runtime error path is the safety net that lets the description drop the
+     * pointer: a caller that guesses wrong is told where to look, and because this
+     * text is only ever returned AFTER a call it can never influence tool selection.
+     */
+    public function testLoadSkillStillPointsAtListSkillsWhenItFails(): void
+    {
+        $source = (string) file_get_contents(
+            (string) (new \ReflectionClass(LoadSkillTool::class))->getFileName(),
+        );
+
+        static::assertStringContainsString(
+            'Use swag-dev-tools-list-skills to see what is available.',
+            $source,
+            'A skill-not-found error should still tell the caller how to discover valid names.',
         );
     }
 

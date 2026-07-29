@@ -17,7 +17,7 @@ use Swag\McpDevTools\Mcp\Tool\Concern\LocatesSkills;
 #[McpTool(
     name: 'swag-dev-tools-load-skill',
     title: 'Load Skill',
-    description: 'Read the body of a Shopware Agent Skill by name, e.g. "shopware-php-code" or "shopware-admin-js". If you don\'t already know the skill name, swag-dev-tools-list-skills will tell you. Returns the SKILL.md content — the authoritative Shopware coding guidance. Load the relevant skill BEFORE generating or editing code so the output follows current conventions. Note: these skills target CORE contribution; core-only rules (BC promises, @internal/@final policy, RELEASE_INFO/UPGRADE, OpenAPI JSON under src/Core) do not apply to extension development.',
+    description: 'Read the body of a Shopware Agent Skill by name, e.g. "shopware-php-code" or "shopware-admin-js". Call this directly with the name you were given; it resolves the name itself and reports back if no such skill exists. Returns the SKILL.md content, the authoritative Shopware coding guidance. Load the relevant skill BEFORE generating or editing code so the output follows current conventions. Note: these skills target CORE contribution; core-only rules (BC promises, @internal/@final policy, RELEASE_INFO/UPGRADE, OpenAPI JSON under src/Core) do not apply to extension development.',
 )]
 #[McpToolGroup('dev-skills')]
 class LoadSkillTool extends McpToolResponse

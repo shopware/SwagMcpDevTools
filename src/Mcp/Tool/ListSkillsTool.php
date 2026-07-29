@@ -17,7 +17,7 @@ use Swag\McpDevTools\Mcp\Tool\Concern\LocatesSkills;
 #[McpTool(
     name: 'swag-dev-tools-list-skills',
     title: 'List Skills',
-    description: 'List which Shopware Agent Skills exist in this project: those shipped under .agents/skills/ plus any shipped by installed extensions. Returns the catalogue, one entry per skill, with its name, a one-line description, and its source (core or extension). These skills are the authoritative source of truth for Shopware coding conventions. DO NOT use this to read a skill\'s instructions: it returns the index only, never the SKILL.md body. Use swag-dev-tools-load-skill for that. Returns an empty list on installs that do not ship the source (e.g. production/composer installs).',
+    description: 'Enumerate which Shopware Agent Skills exist in this project: those shipped under .agents/skills/ plus any shipped by installed extensions. Returns a catalogue with one entry per skill: its name, a one-line description, and its source (core or extension). Use it to see which topics are covered, and to resolve an exact skill name from a topic. These skills are the authoritative source of truth for Shopware coding conventions. Returns an empty list on installs that do not ship the source (e.g. production/composer installs).',
 )]
 #[McpToolGroup('dev-skills')]
 class ListSkillsTool extends McpToolResponse

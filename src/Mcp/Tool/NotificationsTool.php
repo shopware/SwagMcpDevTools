@@ -5,15 +5,19 @@ namespace Swag\McpDevTools\Mcp\Tool;
 use Mcp\Capability\Attribute\McpTool;
 use Mcp\Schema\Enum\LoggingLevel;
 use Mcp\Server\RequestContext;
+use Shopware\Core\Defaults;
+use Shopware\Core\Framework\Api\Context\AdminApiSource;
 use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Filter\RangeFilter;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Sorting\FieldSorting;
 use Shopware\Core\Framework\Mcp\Attribute\McpToolGroup;
+use Shopware\Core\Framework\Mcp\Context\McpContextProvider;
 use Shopware\Core\Framework\Mcp\Tool\McpToolResponse;
 use Shopware\Core\Framework\Notification\NotificationCollection;
 use Shopware\Core\Framework\Notification\NotificationEntity;
+use Shopware\Core\Framework\Notification\NotificationService;
 
 #[McpTool(
     name: 'swag-dev-tools-notifications',
@@ -28,6 +32,8 @@ class NotificationsTool extends McpToolResponse
      */
     public function __construct(
         private readonly EntityRepository $notificationRepository,
+        private readonly NotificationService $notificationService,
+        private readonly McpContextProvider $contextProvider,
     ) {
     }
 
@@ -69,6 +75,44 @@ class NotificationsTool extends McpToolResponse
      */
     private function fetchNotifications(?string $since, int $limit): array
     {
+        $context = $this->contextProvider->getContext();
+
+        if ($context->getSource() instanceof AdminApiSource) {
+            // Go through the same service the Admin API endpoint uses, so that adminOnly
+            // notifications and those carrying requiredPrivileges are filtered against the
+            // caller's ACL role. Reading the repository directly would bypass both.
+            $result = $this->notificationService->getNotifications($context, $limit, $since);
+            $notifications = $result['notifications'];
+            $cursor = $result['timestamp'];
+        } else {
+            // CLI transport (bin/console mcp:debug) carries no admin source to filter
+            // against, and already implies shell access — there is no privilege boundary
+            // left to enforce, so fall back to reading everything.
+            $notifications = $this->fetchWithoutFiltering($since, $limit);
+            $cursor = $notifications->last()?->getCreatedAt()?->format(Defaults::STORAGE_DATE_TIME_FORMAT);
+        }
+
+        $items = [];
+
+        /** @var NotificationEntity $notification */
+        foreach ($notifications as $notification) {
+            $items[] = [
+                'id' => $notification->getId(),
+                'status' => $notification->getStatus(),
+                'message' => $notification->getMessage(),
+                'created_at' => $notification->getCreatedAt()?->format(\DateTimeInterface::ATOM),
+            ];
+        }
+
+        return [
+            'count' => \count($items),
+            'timestamp' => $this->toAtom($cursor),
+            'notifications' => $items,
+        ];
+    }
+
+    private function fetchWithoutFiltering(?string $since, int $limit): NotificationCollection
+    {
         $criteria = new Criteria();
 
         if ($since !== null) {
@@ -78,32 +122,27 @@ class NotificationsTool extends McpToolResponse
         $criteria->addSorting(new FieldSorting('createdAt', FieldSorting::ASCENDING));
         $criteria->setLimit($limit);
 
-        $systemContext = Context::createDefaultContext();
-
-        /** @var NotificationCollection $notifications */
-        $notifications = $systemContext->scope(Context::SYSTEM_SCOPE, function (Context $ctx) use ($criteria) {
+        return Context::createDefaultContext()->scope(Context::SYSTEM_SCOPE, function (Context $ctx) use ($criteria) {
             return $this->notificationRepository->search($criteria, $ctx)->getEntities();
         });
+    }
 
-        $items = [];
-        $latestTimestamp = null;
-
-        /** @var NotificationEntity $notification */
-        foreach ($notifications as $notification) {
-            $createdAt = $notification->getCreatedAt()?->format(\DateTimeInterface::ATOM);
-            $items[] = [
-                'id' => $notification->getId(),
-                'status' => $notification->getStatus(),
-                'message' => $notification->getMessage(),
-                'created_at' => $createdAt,
-            ];
-            $latestTimestamp = $createdAt;
+    /**
+     * NotificationService reports its cursor in storage format; the tool's documented
+     * contract is ISO-8601, since callers pass it straight back as the since argument.
+     */
+    private function toAtom(?string $storageTimestamp): ?string
+    {
+        if ($storageTimestamp === null) {
+            return null;
         }
 
-        return [
-            'count' => \count($items),
-            'timestamp' => $latestTimestamp,
-            'notifications' => $items,
-        ];
+        $date = \DateTimeImmutable::createFromFormat(
+            Defaults::STORAGE_DATE_TIME_FORMAT,
+            $storageTimestamp,
+            new \DateTimeZone('UTC'),
+        );
+
+        return $date === false ? null : $date->format(\DateTimeInterface::ATOM);
     }
 }

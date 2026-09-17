@@ -28,6 +28,8 @@
 
         <service id="Swag\McpDevTools\Mcp\Tool\NotificationsTool">
             <argument type="service" id="notification.repository"/>
+            <argument type="service" id="Shopware\Core\Framework\Notification\NotificationService"/>
+            <argument type="service" id="Shopware\Core\Framework\Mcp\Context\McpContextProvider"/>
             <tag name="shopware.mcp.tool"/>
         </service>
 
@@ -36,6 +38,7 @@
             <argument type="service" id="plugin.repository"/>
             <argument type="service" id="app.repository"/>
             <argument>%kernel.project_dir%</argument>
+            <argument type="service" id="Shopware\Core\Framework\Mcp\Context\McpContextProvider"/>
             <tag name="shopware.mcp.tool"/>
         </service>
 
@@ -43,6 +46,7 @@
             <argument type="service" id="plugin.repository"/>
             <argument type="service" id="app.repository"/>
             <argument>%kernel.project_dir%</argument>
+            <argument type="service" id="Shopware\Core\Framework\Mcp\Context\McpContextProvider"/>
             <tag name="shopware.mcp.tool"/>
         </service>
 
@@ -50,6 +54,7 @@
             <argument type="service" id="plugin.repository"/>
             <argument type="service" id="app.repository"/>
             <argument>%kernel.project_dir%</argument>
+            <argument type="service" id="Shopware\Core\Framework\Mcp\Context\McpContextProvider"/>
             <tag name="shopware.mcp.tool"/>
         </service>
 

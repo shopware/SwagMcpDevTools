@@ -29,3 +29,15 @@ parameters:
         -
             identifier: shopware.unexpectedTestCovers
             path: tests
+        # The MCP SDK deprecated client-side logging in protocol revision 2026-07-28
+        # (SEP-2577), earliest removal 2027-07-28. composer.lock is not committed, so CI
+        # resolves the SDK fresh and picked this up after the last green run on main —
+        # nothing in this bundle changed. Dropping the call means choosing another
+        # transport for the streamed notification payload (stderr is stdio-only, and this
+        # bundle runs over HTTP/SSE), which is a behaviour change worth its own PR.
+        -
+            message: '#deprecated enum Mcp\\Schema\\Enum\\LoggingLevel#'
+            path: src/Mcp/Tool/NotificationsTool.php
+        -
+            message: '#deprecated method log\(\) of class Mcp\\Server\\ClientGateway#'
+            path: src/Mcp/Tool/NotificationsTool.php

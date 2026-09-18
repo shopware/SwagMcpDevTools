@@ -4,9 +4,12 @@ namespace Swag\McpDevTools\Tests\Unit\Tool;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use Shopware\Core\Framework\Api\Context\AdminApiSource;
 use Shopware\Core\Framework\App\AppCollection;
+use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\EntitySearchResult;
+use Shopware\Core\Framework\Mcp\Context\McpContextProvider;
 use Shopware\Core\Framework\Plugin\PluginCollection;
 use Swag\McpDevTools\Mcp\Tool\ListSkillsTool;
 
@@ -58,7 +61,7 @@ class ListSkillsToolTest extends TestCase
 
     private function tool(string $projectDir): ListSkillsTool
     {
-        return new ListSkillsTool($this->emptyRepo('plugin'), $this->emptyRepo('app'), $projectDir);
+        return new ListSkillsTool($this->emptyRepo('plugin'), $this->emptyRepo('app'), $projectDir, $this->contextProvider());
     }
 
     private function emptyRepo(string $entity): EntityRepository
@@ -71,5 +74,20 @@ class ListSkillsToolTest extends TestCase
         $repo->method('search')->willReturn($result);
 
         return $repo;
+    }
+
+    /**
+     * @param list<string> $privileges
+     */
+    private function contextProvider(array $privileges = ['plugin:read', 'app:read']): McpContextProvider
+    {
+        $source = new AdminApiSource(null, 'integration-id');
+        $source->setIsAdmin(false);
+        $source->setPermissions($privileges);
+
+        $provider = $this->createMock(McpContextProvider::class);
+        $provider->method('getContext')->willReturn(new Context($source));
+
+        return $provider;
     }
 }

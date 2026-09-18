@@ -5,10 +5,10 @@ namespace Swag\McpDevTools\Mcp\Tool;
 use Mcp\Capability\Attribute\McpTool;
 use Shopware\Core\Framework\App\AppCollection;
 use Shopware\Core\Framework\App\AppEntity;
-use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
 use Shopware\Core\Framework\Mcp\Attribute\McpToolGroup;
+use Shopware\Core\Framework\Mcp\Context\McpContextProvider;
 use Shopware\Core\Framework\Mcp\Tool\McpToolResponse;
 use Shopware\Core\Framework\Plugin\PluginCollection;
 use Shopware\Core\Framework\Plugin\PluginEntity;
@@ -32,6 +32,7 @@ class LoadSkillTool extends McpToolResponse
         private readonly EntityRepository $pluginRepository,
         private readonly EntityRepository $appRepository,
         private readonly string $projectDir,
+        private readonly McpContextProvider $contextProvider,
     ) {
     }
 
@@ -58,20 +59,27 @@ class LoadSkillTool extends McpToolResponse
      */
     private function extensionRoots(): array
     {
-        $context = Context::createDefaultContext();
+        $context = $this->contextProvider->getContext();
         $roots = [];
 
-        /** @var PluginEntity $plugin */
-        foreach ($this->pluginRepository->search(new Criteria(), $context)->getEntities() as $plugin) {
-            $path = $plugin->getPath();
-            if ($path !== null && $path !== '') {
-                $roots[] = ['name' => $plugin->getName(), 'path' => $this->absolutePath($path)];
+        // Extension inventory is ACL-gated data, but the skills themselves are static
+        // developer documentation. Degrade to the project-dir skills rather than failing,
+        // so a caller without extension privileges still gets the core skill set.
+        if ($context->isAllowed('plugin:read')) {
+            /** @var PluginEntity $plugin */
+            foreach ($this->pluginRepository->search(new Criteria(), $context)->getEntities() as $plugin) {
+                $path = $plugin->getPath();
+                if ($path !== null && $path !== '') {
+                    $roots[] = ['name' => $plugin->getName(), 'path' => $this->absolutePath($path)];
+                }
             }
         }
 
-        /** @var AppEntity $app */
-        foreach ($this->appRepository->search(new Criteria(), $context)->getEntities() as $app) {
-            $roots[] = ['name' => $app->getName(), 'path' => $this->absolutePath($app->getPath())];
+        if ($context->isAllowed('app:read')) {
+            /** @var AppEntity $app */
+            foreach ($this->appRepository->search(new Criteria(), $context)->getEntities() as $app) {
+                $roots[] = ['name' => $app->getName(), 'path' => $this->absolutePath($app->getPath())];
+            }
         }
 
         return $roots;

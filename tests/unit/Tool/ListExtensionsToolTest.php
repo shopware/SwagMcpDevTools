@@ -4,10 +4,13 @@ namespace Swag\McpDevTools\Tests\Unit\Tool;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use Shopware\Core\Framework\Api\Context\AdminApiSource;
 use Shopware\Core\Framework\App\AppCollection;
 use Shopware\Core\Framework\App\AppEntity;
+use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\EntitySearchResult;
+use Shopware\Core\Framework\Mcp\Context\McpContextProvider;
 use Shopware\Core\Framework\Plugin\PluginCollection;
 use Shopware\Core\Framework\Plugin\PluginEntity;
 use Swag\McpDevTools\Mcp\Tool\ListExtensionsTool;
@@ -27,6 +30,7 @@ class ListExtensionsToolTest extends TestCase
             $this->pluginRepo(new PluginCollection([$custom, $vendor])),
             $this->appRepo(new AppCollection([])),
             '/var/www/shop',
+            $this->contextProvider(['plugin:read', 'app:read']),
         );
 
         $data = json_decode($tool(), true);
@@ -59,6 +63,7 @@ class ListExtensionsToolTest extends TestCase
             $this->pluginRepo(new PluginCollection([])),
             $this->appRepo(new AppCollection([$app])),
             '/var/www/shop',
+            $this->contextProvider(['plugin:read', 'app:read']),
         );
 
         $data = json_decode($tool('app'), true);
@@ -66,6 +71,51 @@ class ListExtensionsToolTest extends TestCase
         static::assertCount(1, $data['data']);
         static::assertSame('app', $data['data'][0]['type']);
         static::assertTrue($data['data'][0]['writable']);
+    }
+
+    public function testDeniesListingWithoutPluginReadPrivilege(): void
+    {
+        $tool = new ListExtensionsTool(
+            $this->pluginRepo(new PluginCollection([])),
+            $this->appRepo(new AppCollection([])),
+            '/var/www/shop',
+            $this->contextProvider([]),
+        );
+
+        $data = json_decode($tool(), true);
+
+        static::assertFalse($data['success']);
+        static::assertSame('Missing privilege: plugin:read', $data['error']);
+    }
+
+    public function testDeniesAppListingWithoutAppReadPrivilege(): void
+    {
+        $tool = new ListExtensionsTool(
+            $this->pluginRepo(new PluginCollection([])),
+            $this->appRepo(new AppCollection([])),
+            '/var/www/shop',
+            $this->contextProvider(['plugin:read']),
+        );
+
+        $data = json_decode($tool('app'), true);
+
+        static::assertFalse($data['success']);
+        static::assertSame('Missing privilege: app:read', $data['error']);
+    }
+
+    /**
+     * @param list<string> $privileges
+     */
+    private function contextProvider(array $privileges): McpContextProvider
+    {
+        $source = new AdminApiSource(null, 'integration-id');
+        $source->setIsAdmin(false);
+        $source->setPermissions($privileges);
+
+        $provider = $this->createMock(McpContextProvider::class);
+        $provider->method('getContext')->willReturn(new Context($source));
+
+        return $provider;
     }
 
     private function plugin(string $name, string $baseClass, string $path): PluginEntity

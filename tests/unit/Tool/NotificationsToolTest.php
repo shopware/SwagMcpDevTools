@@ -8,11 +8,15 @@ use Mcp\Server\Session\SessionInterface;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
-use Shopware\Core\Framework\DataAbstractionLayer\EntityCollection;
+use Shopware\Core\Framework\Api\Context\AdminApiSource;
+use Shopware\Core\Framework\Api\Context\SalesChannelApiSource;
+use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
-use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\EntitySearchResult;
+use Shopware\Core\Framework\Mcp\Context\McpContextProvider;
+use Shopware\Core\Framework\Notification\NotificationCollection;
 use Shopware\Core\Framework\Notification\NotificationEntity;
+use Shopware\Core\Framework\Notification\NotificationService;
 use Swag\McpDevTools\Mcp\Tool\NotificationsTool;
 
 /**
@@ -22,21 +26,34 @@ use Swag\McpDevTools\Mcp\Tool\NotificationsTool;
 class NotificationsToolTest extends TestCase
 {
     /**
-     * @var MockObject&EntityRepository<EntityCollection<NotificationEntity>>
+     * @var MockObject&EntityRepository<NotificationCollection>
      */
     private MockObject&EntityRepository $repository;
+
+    private NotificationService&MockObject $notificationService;
+
+    private McpContextProvider&MockObject $contextProvider;
 
     private NotificationsTool $tool;
 
     protected function setUp(): void
     {
         $this->repository = $this->createMock(EntityRepository::class);
-        $this->tool = new NotificationsTool($this->repository);
+        $this->notificationService = $this->createMock(NotificationService::class);
+        $this->contextProvider = $this->createMock(McpContextProvider::class);
+
+        $this->contextProvider->method('getContext')->willReturn($this->adminApiContext());
+
+        $this->tool = new NotificationsTool(
+            $this->repository,
+            $this->notificationService,
+            $this->contextProvider,
+        );
     }
 
     public function testReturnsEmptyWhenNoNotifications(): void
     {
-        $this->mockSearchResult(new EntityCollection());
+        $this->mockServiceResult(new NotificationCollection(), null);
 
         $data = $this->invoke($this->makeContext());
 
@@ -49,7 +66,7 @@ class NotificationsToolTest extends TestCase
     public function testReturnsNotifications(): void
     {
         $notification = $this->makeNotification('abc123', 'success', 'Indexer \'product.indexer\' finished.');
-        $this->mockSearchResult(new EntityCollection([$notification]));
+        $this->mockServiceResult(new NotificationCollection([$notification]), '2026-04-30 10:00:00.000');
 
         $data = $this->invoke($this->makeContext());
 
@@ -58,27 +75,71 @@ class NotificationsToolTest extends TestCase
         static::assertSame('abc123', $data['data']['notifications'][0]['id']);
         static::assertSame('success', $data['data']['notifications'][0]['status']);
         static::assertSame('Indexer \'product.indexer\' finished.', $data['data']['notifications'][0]['message']);
-        static::assertNotNull($data['data']['timestamp']);
+        static::assertSame('2026-04-30T10:00:00.000+00:00', $data['data']['timestamp']);
     }
 
-    public function testPassesSinceFilterWhenProvided(): void
+    /**
+     * Regression guard: the tool must never read the notification repository directly for
+     * an Admin API caller. Doing so bypasses the adminOnly and requiredPrivileges filtering
+     * that NotificationService applies, exposing every notification in the shop to any
+     * caller — including one holding no ACL privileges at all.
+     */
+    public function testDelegatesToNotificationServiceInsteadOfReadingRepository(): void
     {
-        $this->repository
-            ->expects($this->once())
-            ->method('search')
-            ->with(
-                static::callback(static fn (Criteria $c): bool => $c->getFilters() !== []),
-                static::anything(),
-            )
-            ->willReturn($this->buildSearchResult(new EntityCollection()));
+        $this->repository->expects($this->never())->method('search');
 
-        $this->invoke($this->makeContext(), since: '2026-04-30T00:00:00+00:00');
+        $this->notificationService
+            ->expects($this->once())
+            ->method('getNotifications')
+            ->with(
+                static::isInstanceOf(Context::class),
+                20,
+                null,
+            )
+            ->willReturn(['notifications' => new NotificationCollection(), 'timestamp' => null]);
+
+        $this->invoke($this->makeContext());
+    }
+
+    public function testPassesSinceToNotificationServiceAsCursor(): void
+    {
+        $this->notificationService
+            ->expects($this->once())
+            ->method('getNotifications')
+            ->with(
+                static::isInstanceOf(Context::class),
+                50,
+                '2026-04-30T00:00:00+00:00',
+            )
+            ->willReturn(['notifications' => new NotificationCollection(), 'timestamp' => null]);
+
+        $this->invoke($this->makeContext(), since: '2026-04-30T00:00:00+00:00', limit: 50);
+    }
+
+    public function testFallsBackToRepositoryForNonAdminSource(): void
+    {
+        $notification = $this->makeNotification('cli1', 'info', 'from cli');
+
+        $contextProvider = $this->createMock(McpContextProvider::class);
+        $contextProvider->method('getContext')->willReturn(Context::createCLIContext());
+
+        $this->notificationService->expects($this->never())->method('getNotifications');
+
+        $result = $this->createMock(EntitySearchResult::class);
+        $result->method('getEntities')->willReturn(new NotificationCollection([$notification]));
+        $this->repository->expects($this->once())->method('search')->willReturn($result);
+
+        $tool = new NotificationsTool($this->repository, $this->notificationService, $contextProvider);
+        $data = json_decode(($tool)($this->makeContext()), true, 512, \JSON_THROW_ON_ERROR);
+
+        static::assertSame(1, $data['data']['count']);
+        static::assertSame('cli1', $data['data']['notifications'][0]['id']);
     }
 
     public function testWaitModeReturnsImmediatelyWhenNotificationPresent(): void
     {
         $notification = $this->makeNotification('xyz', 'info', 'done');
-        $this->mockSearchResult(new EntityCollection([$notification]));
+        $this->mockServiceResult(new NotificationCollection([$notification]), '2026-04-30 10:00:00.000');
 
         $data = $this->invoke($this->makeContext(), wait: true);
 
@@ -88,13 +149,126 @@ class NotificationsToolTest extends TestCase
 
     public function testWaitModeTimesOutWithoutNotifications(): void
     {
-        $this->mockSearchResult(new EntityCollection());
+        $this->mockServiceResult(new NotificationCollection(), null);
 
         $data = $this->invoke($this->makeContext(), wait: true, timeout: 0);
 
         static::assertTrue($data['success']);
         static::assertTrue($data['data']['timeout']);
         static::assertSame(0, $data['data']['count']);
+    }
+
+    /**
+     * Regression guard for the cursor contract: the service reports its cursor in storage
+     * format, which carries milliseconds. Formatting it as plain ATOM would drop them, and
+     * the truncated value fed back as `since` re-matches everything created earlier in that
+     * same second — turning incremental polling into duplicate delivery.
+     */
+    public function testCursorPreservesMilliseconds(): void
+    {
+        $this->mockServiceResult(new NotificationCollection(), '2026-04-30 10:00:00.500');
+
+        $data = $this->invoke($this->makeContext());
+
+        static::assertSame('2026-04-30T10:00:00.500+00:00', $data['data']['timestamp']);
+    }
+
+    /**
+     * "Not an AdminApiSource" must not be read as "must be the trusted CLI". Any source we
+     * have no read path for is refused rather than silently handed the unfiltered read.
+     */
+    public function testRefusesUnknownContextSource(): void
+    {
+        $contextProvider = $this->createMock(McpContextProvider::class);
+        $contextProvider->method('getContext')->willReturn(new Context(new SalesChannelApiSource('sales-channel-id')));
+
+        $this->notificationService->expects($this->never())->method('getNotifications');
+        $this->repository->expects($this->never())->method('search');
+
+        $tool = new NotificationsTool($this->repository, $this->notificationService, $contextProvider);
+        $data = json_decode(($tool)($this->makeContext()), true, 512, \JSON_THROW_ON_ERROR);
+
+        static::assertFalse($data['success']);
+        static::assertStringContainsString('Unsupported context source', $data['error']);
+    }
+
+    /**
+     * The CLI fallback must elevate the context it was given rather than forging a fresh
+     * one, so nothing about the caller is silently discarded.
+     */
+    public function testCliFallbackElevatesTheResolvedContext(): void
+    {
+        $cliContext = Context::createCLIContext();
+
+        $contextProvider = $this->createMock(McpContextProvider::class);
+        $contextProvider->method('getContext')->willReturn($cliContext);
+
+        $result = $this->createMock(EntitySearchResult::class);
+        $result->method('getEntities')->willReturn(new NotificationCollection());
+
+        $this->repository
+            ->expects($this->once())
+            ->method('search')
+            ->with(
+                static::anything(),
+                static::callback(static fn (Context $ctx): bool => $ctx->getScope() === Context::SYSTEM_SCOPE
+                    && $ctx->getSource() === $cliContext->getSource()),
+            )
+            ->willReturn($result);
+
+        $tool = new NotificationsTool($this->repository, $this->notificationService, $contextProvider);
+        $data = json_decode(($tool)($this->makeContext()), true, 512, \JSON_THROW_ON_ERROR);
+
+        static::assertTrue($data['success']);
+    }
+
+    /**
+     * Reproduces the starvation case: when an Admin API caller's whole page is removed by
+     * adminOnly/requiredPrivileges, the result is empty but the cursor still advanced. The
+     * loop must poll with that cursor, not the original $since — otherwise it re-reads the
+     * same invisible page every iteration and times out without ever reaching a later
+     * notification the caller can actually see.
+     *
+     * Costs one real 3s interval: two iterations are required to observe the carry-forward.
+     */
+    public function testWaitAdvancesCursorPastAFullyFilteredPage(): void
+    {
+        $seen = [];
+        $this->notificationService
+            ->method('getNotifications')
+            ->willReturnCallback(function (Context $context, int $limit, ?string $since) use (&$seen): array {
+                $seen[] = $since;
+
+                // First page exists but is entirely filtered out; second carries a visible one.
+                if (\count($seen) === 1) {
+                    return ['notifications' => new NotificationCollection(), 'timestamp' => '2026-04-30 10:00:00.500'];
+                }
+
+                return [
+                    'notifications' => new NotificationCollection([$this->makeNotification('visible', 'info', 'later')]),
+                    'timestamp' => '2026-04-30 11:00:00.000',
+                ];
+            });
+
+        $data = $this->invoke($this->makeContext(), wait: true, timeout: 60);
+
+        static::assertSame([null, '2026-04-30T10:00:00.500+00:00'], $seen);
+        static::assertSame(1, $data['data']['count']);
+    }
+
+    public function testTimeoutHandsBackTheCursorSoTheCallerCanResume(): void
+    {
+        $this->mockServiceResult(new NotificationCollection(), null);
+
+        $data = $this->invoke($this->makeContext(), since: '2026-04-30T09:00:00.000+00:00', wait: true, timeout: 0);
+
+        static::assertTrue($data['data']['timeout']);
+        static::assertSame('2026-04-30T09:00:00.000+00:00', $data['data']['timestamp']);
+    }
+
+    private function adminApiContext(): Context
+    {
+        return new Context(new AdminApiSource(null, 'integration-id'));
     }
 
     private function makeContext(): RequestContext
@@ -117,17 +291,11 @@ class NotificationsToolTest extends TestCase
         return $entity;
     }
 
-    private function mockSearchResult(EntityCollection $collection): void
+    private function mockServiceResult(NotificationCollection $collection, ?string $timestamp): void
     {
-        $this->repository->method('search')->willReturn($this->buildSearchResult($collection));
-    }
-
-    private function buildSearchResult(EntityCollection $collection): EntitySearchResult
-    {
-        $result = $this->createMock(EntitySearchResult::class);
-        $result->method('getEntities')->willReturn($collection);
-
-        return $result;
+        $this->notificationService
+            ->method('getNotifications')
+            ->willReturn(['notifications' => $collection, 'timestamp' => $timestamp]);
     }
 
     /**

@@ -5,10 +5,11 @@ namespace Swag\McpDevTools\Mcp\Tool;
 use Mcp\Capability\Attribute\McpTool;
 use Shopware\Core\Framework\App\AppCollection;
 use Shopware\Core\Framework\App\AppEntity;
-use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
 use Shopware\Core\Framework\Mcp\Attribute\McpToolGroup;
+use Shopware\Core\Framework\Mcp\Attribute\McpToolRequires;
+use Shopware\Core\Framework\Mcp\Context\McpContextProvider;
 use Shopware\Core\Framework\Mcp\Tool\McpToolResponse;
 use Shopware\Core\Framework\Plugin\PluginCollection;
 use Shopware\Core\Framework\Plugin\PluginEntity;
@@ -19,6 +20,8 @@ use Shopware\Core\Framework\Plugin\PluginEntity;
     description: 'List installed Shopware extensions (plugins and apps) with their absolute rootPath, PSR-4 namespace, base class, whether they are managed by Composer, and a "writable" flag. Use this FIRST when scaffolding code into an existing extension so you know where files belong and which namespace to use. writable=false means the extension lives in vendor/ (composer-managed) and must NOT be edited in place — extend it from your own custom plugin instead. Composer-installed plugins are included (unlike a plain custom/plugins folder scan).',
 )]
 #[McpToolGroup('dev-extensions')]
+#[McpToolRequires('plugin:read')]
+#[McpToolRequires('app:read')]
 class ListExtensionsTool extends McpToolResponse
 {
     /**
@@ -29,15 +32,20 @@ class ListExtensionsTool extends McpToolResponse
         private readonly EntityRepository $pluginRepository,
         private readonly EntityRepository $appRepository,
         private readonly string $projectDir,
+        private readonly McpContextProvider $contextProvider,
     ) {
     }
 
     public function __invoke(string $type = ''): string
     {
-        $context = Context::createDefaultContext();
+        $context = $this->contextProvider->getContext();
         $extensions = [];
 
         if ($type === '' || $type === 'plugin') {
+            if ($error = $this->requirePrivilege($context, 'plugin:read')) {
+                return $error;
+            }
+
             /** @var PluginEntity $plugin */
             foreach ($this->pluginRepository->search(new Criteria(), $context)->getEntities() as $plugin) {
                 $extensions[] = $this->mapPlugin($plugin);
@@ -45,6 +53,10 @@ class ListExtensionsTool extends McpToolResponse
         }
 
         if ($type === '' || $type === 'app') {
+            if ($error = $this->requirePrivilege($context, 'app:read')) {
+                return $error;
+            }
+
             /** @var AppEntity $app */
             foreach ($this->appRepository->search(new Criteria(), $context)->getEntities() as $app) {
                 $extensions[] = $this->mapApp($app);

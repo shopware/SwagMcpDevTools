@@ -29,13 +29,6 @@ use Shopware\Core\Framework\Notification\NotificationService;
 class NotificationsTool extends McpToolResponse
 {
     /**
-     * ISO-8601 retaining milliseconds. Plain ATOM drops the fractional second, which would
-     * make a cursor of 10:00:00.500 come back as 10:00:00 and re-match every notification
-     * created earlier in that same second on the next poll.
-     */
-    private const TIMESTAMP_FORMAT = 'Y-m-d\TH:i:s.vP';
-
-    /**
      * @param EntityRepository<NotificationCollection> $notificationRepository
      */
     public function __construct(
@@ -105,7 +98,7 @@ class NotificationsTool extends McpToolResponse
             // against, and already implies shell access — there is no privilege boundary
             // left to enforce, so fall back to reading everything.
             $notifications = $this->fetchWithoutFiltering($context, $since, $limit);
-            $cursor = $notifications->last()?->getCreatedAt()?->format(self::TIMESTAMP_FORMAT);
+            $cursor = $notifications->last()?->getCreatedAt()?->format(\DateTimeInterface::RFC3339_EXTENDED);
         }
 
         $items = [];
@@ -116,7 +109,7 @@ class NotificationsTool extends McpToolResponse
                 'id' => $notification->getId(),
                 'status' => $notification->getStatus(),
                 'message' => $notification->getMessage(),
-                'created_at' => $notification->getCreatedAt()?->format(self::TIMESTAMP_FORMAT),
+                'created_at' => $notification->getCreatedAt()?->format(\DateTimeInterface::RFC3339_EXTENDED),
             ];
         }
 
@@ -148,6 +141,11 @@ class NotificationsTool extends McpToolResponse
     /**
      * NotificationService reports its cursor in storage format; the tool's documented
      * contract is ISO-8601, since callers pass it straight back as the since argument.
+     *
+     * RFC3339_EXTENDED rather than ATOM: storage format is millisecond-precise, and ATOM
+     * drops the fractional second — a cursor of 10:00:00.500 would come back as 10:00:00
+     * and re-match everything created earlier in that same second on the next poll. It is
+     * also the format core's own JsonSerializableTrait uses for DateTimes in JSON.
      */
     private function storageToIso8601(?string $storageTimestamp): ?string
     {
@@ -161,6 +159,6 @@ class NotificationsTool extends McpToolResponse
             new \DateTimeZone('UTC'),
         );
 
-        return $date === false ? null : $date->format(self::TIMESTAMP_FORMAT);
+        return $date === false ? null : $date->format(\DateTimeInterface::RFC3339_EXTENDED);
     }
 }

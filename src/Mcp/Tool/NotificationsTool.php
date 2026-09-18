@@ -7,6 +7,7 @@ use Mcp\Schema\Enum\LoggingLevel;
 use Mcp\Server\RequestContext;
 use Shopware\Core\Defaults;
 use Shopware\Core\Framework\Api\Context\AdminApiSource;
+use Shopware\Core\Framework\Api\Context\SystemSource;
 use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
@@ -28,6 +29,13 @@ use Shopware\Core\Framework\Notification\NotificationService;
 class NotificationsTool extends McpToolResponse
 {
     /**
+     * ISO-8601 retaining milliseconds. Plain ATOM drops the fractional second, which would
+     * make a cursor of 10:00:00.500 come back as 10:00:00 and re-match every notification
+     * created earlier in that same second on the next poll.
+     */
+    private const TIMESTAMP_FORMAT = 'Y-m-d\TH:i:s.vP';
+
+    /**
      * @param EntityRepository<NotificationCollection> $notificationRepository
      */
     public function __construct(
@@ -45,15 +53,25 @@ class NotificationsTool extends McpToolResponse
         int $timeout = 60,
     ): string {
         $client = $context->getClientGateway();
+        $shopwareContext = $this->contextProvider->getContext();
+        $source = $shopwareContext->getSource();
+
+        // Fail closed on anything we cannot reason about. Only two sources can reach this
+        // tool today — AdminApiSource over /api/_mcp, SystemSource from the CLI transport —
+        // and each has its own read path below. Treating "not an admin" as "must be the
+        // trusted CLI" would silently hand an unfiltered read to any future source.
+        if (!$source instanceof AdminApiSource && !$source instanceof SystemSource) {
+            return $this->error(\sprintf('Unsupported context source "%s" for reading notifications.', $source::class));
+        }
 
         if (!$wait) {
-            return $this->success($this->fetchNotifications($since, $limit));
+            return $this->success($this->fetchNotifications($shopwareContext, $since, $limit));
         }
 
         $elapsed = 0;
         $interval = 3;
         while ($elapsed < $timeout) {
-            $result = $this->fetchNotifications($since, $limit);
+            $result = $this->fetchNotifications($shopwareContext, $since, $limit);
             if ($result['count'] > 0) {
                 if (\Fiber::getCurrent() !== null) {
                     $client->log(LoggingLevel::Info, $result['notifications'], 'swag-dev-tools');
@@ -73,23 +91,21 @@ class NotificationsTool extends McpToolResponse
     /**
      * @return array{count: int, timestamp: string|null, notifications: list<array{id: string, status: string, message: string, created_at: string|null}>}
      */
-    private function fetchNotifications(?string $since, int $limit): array
+    private function fetchNotifications(Context $context, ?string $since, int $limit): array
     {
-        $context = $this->contextProvider->getContext();
-
         if ($context->getSource() instanceof AdminApiSource) {
             // Go through the same service the Admin API endpoint uses, so that adminOnly
             // notifications and those carrying requiredPrivileges are filtered against the
             // caller's ACL role. Reading the repository directly would bypass both.
             $result = $this->notificationService->getNotifications($context, $limit, $since);
             $notifications = $result['notifications'];
-            $cursor = $result['timestamp'];
+            $cursor = $this->storageToIso8601($result['timestamp']);
         } else {
             // CLI transport (bin/console mcp:debug) carries no admin source to filter
             // against, and already implies shell access — there is no privilege boundary
             // left to enforce, so fall back to reading everything.
-            $notifications = $this->fetchWithoutFiltering($since, $limit);
-            $cursor = $notifications->last()?->getCreatedAt()?->format(Defaults::STORAGE_DATE_TIME_FORMAT);
+            $notifications = $this->fetchWithoutFiltering($context, $since, $limit);
+            $cursor = $notifications->last()?->getCreatedAt()?->format(self::TIMESTAMP_FORMAT);
         }
 
         $items = [];
@@ -100,18 +116,18 @@ class NotificationsTool extends McpToolResponse
                 'id' => $notification->getId(),
                 'status' => $notification->getStatus(),
                 'message' => $notification->getMessage(),
-                'created_at' => $notification->getCreatedAt()?->format(\DateTimeInterface::ATOM),
+                'created_at' => $notification->getCreatedAt()?->format(self::TIMESTAMP_FORMAT),
             ];
         }
 
         return [
             'count' => \count($items),
-            'timestamp' => $this->toAtom($cursor),
+            'timestamp' => $cursor,
             'notifications' => $items,
         ];
     }
 
-    private function fetchWithoutFiltering(?string $since, int $limit): NotificationCollection
+    private function fetchWithoutFiltering(Context $context, ?string $since, int $limit): NotificationCollection
     {
         $criteria = new Criteria();
 
@@ -122,7 +138,9 @@ class NotificationsTool extends McpToolResponse
         $criteria->addSorting(new FieldSorting('createdAt', FieldSorting::ASCENDING));
         $criteria->setLimit($limit);
 
-        return Context::createDefaultContext()->scope(Context::SYSTEM_SCOPE, function (Context $ctx) use ($criteria) {
+        // Elevate the caller's own context rather than forging a fresh one, so nothing about
+        // the caller is silently dropped. SYSTEM_SCOPE is required by the entity's ReadProtection.
+        return $context->scope(Context::SYSTEM_SCOPE, function (Context $ctx) use ($criteria) {
             return $this->notificationRepository->search($criteria, $ctx)->getEntities();
         });
     }
@@ -131,7 +149,7 @@ class NotificationsTool extends McpToolResponse
      * NotificationService reports its cursor in storage format; the tool's documented
      * contract is ISO-8601, since callers pass it straight back as the since argument.
      */
-    private function toAtom(?string $storageTimestamp): ?string
+    private function storageToIso8601(?string $storageTimestamp): ?string
     {
         if ($storageTimestamp === null) {
             return null;
@@ -143,6 +161,6 @@ class NotificationsTool extends McpToolResponse
             new \DateTimeZone('UTC'),
         );
 
-        return $date === false ? null : $date->format(\DateTimeInterface::ATOM);
+        return $date === false ? null : $date->format(self::TIMESTAMP_FORMAT);
     }
 }

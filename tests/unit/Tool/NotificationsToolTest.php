@@ -9,6 +9,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 use Shopware\Core\Framework\Api\Context\AdminApiSource;
+use Shopware\Core\Framework\Api\Context\SalesChannelApiSource;
 use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\EntitySearchResult;
@@ -74,7 +75,7 @@ class NotificationsToolTest extends TestCase
         static::assertSame('abc123', $data['data']['notifications'][0]['id']);
         static::assertSame('success', $data['data']['notifications'][0]['status']);
         static::assertSame('Indexer \'product.indexer\' finished.', $data['data']['notifications'][0]['message']);
-        static::assertSame('2026-04-30T10:00:00+00:00', $data['data']['timestamp']);
+        static::assertSame('2026-04-30T10:00:00.000+00:00', $data['data']['timestamp']);
     }
 
     /**
@@ -155,6 +156,70 @@ class NotificationsToolTest extends TestCase
         static::assertTrue($data['success']);
         static::assertTrue($data['data']['timeout']);
         static::assertSame(0, $data['data']['count']);
+    }
+
+    /**
+     * Regression guard for the cursor contract: the service reports its cursor in storage
+     * format, which carries milliseconds. Formatting it as plain ATOM would drop them, and
+     * the truncated value fed back as `since` re-matches everything created earlier in that
+     * same second — turning incremental polling into duplicate delivery.
+     */
+    public function testCursorPreservesMilliseconds(): void
+    {
+        $this->mockServiceResult(new NotificationCollection(), '2026-04-30 10:00:00.500');
+
+        $data = $this->invoke($this->makeContext());
+
+        static::assertSame('2026-04-30T10:00:00.500+00:00', $data['data']['timestamp']);
+    }
+
+    /**
+     * "Not an AdminApiSource" must not be read as "must be the trusted CLI". Any source we
+     * have no read path for is refused rather than silently handed the unfiltered read.
+     */
+    public function testRefusesUnknownContextSource(): void
+    {
+        $contextProvider = $this->createMock(McpContextProvider::class);
+        $contextProvider->method('getContext')->willReturn(new Context(new SalesChannelApiSource('sales-channel-id')));
+
+        $this->notificationService->expects($this->never())->method('getNotifications');
+        $this->repository->expects($this->never())->method('search');
+
+        $tool = new NotificationsTool($this->repository, $this->notificationService, $contextProvider);
+        $data = json_decode(($tool)($this->makeContext()), true, 512, \JSON_THROW_ON_ERROR);
+
+        static::assertFalse($data['success']);
+        static::assertStringContainsString('Unsupported context source', $data['error']);
+    }
+
+    /**
+     * The CLI fallback must elevate the context it was given rather than forging a fresh
+     * one, so nothing about the caller is silently discarded.
+     */
+    public function testCliFallbackElevatesTheResolvedContext(): void
+    {
+        $cliContext = Context::createCLIContext();
+
+        $contextProvider = $this->createMock(McpContextProvider::class);
+        $contextProvider->method('getContext')->willReturn($cliContext);
+
+        $result = $this->createMock(EntitySearchResult::class);
+        $result->method('getEntities')->willReturn(new NotificationCollection());
+
+        $this->repository
+            ->expects($this->once())
+            ->method('search')
+            ->with(
+                static::anything(),
+                static::callback(static fn (Context $ctx): bool => $ctx->getScope() === Context::SYSTEM_SCOPE
+                    && $ctx->getSource() === $cliContext->getSource()),
+            )
+            ->willReturn($result);
+
+        $tool = new NotificationsTool($this->repository, $this->notificationService, $contextProvider);
+        $data = json_decode(($tool)($this->makeContext()), true, 512, \JSON_THROW_ON_ERROR);
+
+        static::assertTrue($data['success']);
     }
 
     private function adminApiContext(): Context

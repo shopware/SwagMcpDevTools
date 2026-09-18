@@ -222,6 +222,50 @@ class NotificationsToolTest extends TestCase
         static::assertTrue($data['success']);
     }
 
+    /**
+     * Reproduces the starvation case: when an Admin API caller's whole page is removed by
+     * adminOnly/requiredPrivileges, the result is empty but the cursor still advanced. The
+     * loop must poll with that cursor, not the original $since — otherwise it re-reads the
+     * same invisible page every iteration and times out without ever reaching a later
+     * notification the caller can actually see.
+     *
+     * Costs one real 3s interval: two iterations are required to observe the carry-forward.
+     */
+    public function testWaitAdvancesCursorPastAFullyFilteredPage(): void
+    {
+        $seen = [];
+        $this->notificationService
+            ->method('getNotifications')
+            ->willReturnCallback(function (Context $context, int $limit, ?string $since) use (&$seen): array {
+                $seen[] = $since;
+
+                // First page exists but is entirely filtered out; second carries a visible one.
+                if (\count($seen) === 1) {
+                    return ['notifications' => new NotificationCollection(), 'timestamp' => '2026-04-30 10:00:00.500'];
+                }
+
+                return [
+                    'notifications' => new NotificationCollection([$this->makeNotification('visible', 'info', 'later')]),
+                    'timestamp' => '2026-04-30 11:00:00.000',
+                ];
+            });
+
+        $data = $this->invoke($this->makeContext(), wait: true, timeout: 60);
+
+        static::assertSame([null, '2026-04-30T10:00:00.500+00:00'], $seen);
+        static::assertSame(1, $data['data']['count']);
+    }
+
+    public function testTimeoutHandsBackTheCursorSoTheCallerCanResume(): void
+    {
+        $this->mockServiceResult(new NotificationCollection(), null);
+
+        $data = $this->invoke($this->makeContext(), since: '2026-04-30T09:00:00.000+00:00', wait: true, timeout: 0);
+
+        static::assertTrue($data['data']['timeout']);
+        static::assertSame('2026-04-30T09:00:00.000+00:00', $data['data']['timestamp']);
+    }
+
     private function adminApiContext(): Context
     {
         return new Context(new AdminApiSource(null, 'integration-id'));

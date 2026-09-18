@@ -63,8 +63,9 @@ class NotificationsTool extends McpToolResponse
 
         $elapsed = 0;
         $interval = 3;
+        $cursor = $since;
         while ($elapsed < $timeout) {
-            $result = $this->fetchNotifications($shopwareContext, $since, $limit);
+            $result = $this->fetchNotifications($shopwareContext, $cursor, $limit);
             if ($result['count'] > 0) {
                 if (\Fiber::getCurrent() !== null) {
                     $client->log(LoggingLevel::Info, $result['notifications'], 'swag-dev-tools');
@@ -73,12 +74,20 @@ class NotificationsTool extends McpToolResponse
 
                 return $this->success($result);
             }
+
+            // The cursor is reported pre-filter, so a page emptied entirely by adminOnly or
+            // requiredPrivileges still advances it. Carry it into the next poll — polling
+            // the original $since would re-read that same invisible page every iteration and
+            // time out without ever reaching a later notification the caller can see.
+            $cursor = $result['timestamp'] ?? $cursor;
+
             $client->progress((float) $elapsed, (float) $timeout, \sprintf('Waiting... (%ds elapsed)', $elapsed));
             sleep($interval);
             $elapsed += $interval;
         }
 
-        return $this->success(['timeout' => true, 'count' => 0, 'notifications' => [], 'timestamp' => null]);
+        // Hand back how far we got, so the caller resumes past the invisible pages.
+        return $this->success(['timeout' => true, 'count' => 0, 'notifications' => [], 'timestamp' => $cursor]);
     }
 
     /**

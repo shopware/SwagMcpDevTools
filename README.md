@@ -13,7 +13,9 @@ the core MCP server and extends its `/api/_mcp` endpoint with two things:
    writing to disk.
 
 > [!WARNING]
-> **Experimental. May be removed at any time.** This bundle is a proof of concept and is **not** covered by any stability or backwards-compatibility guarantee. It can be discontinued, archived, or removed without notice, particularly in favor of **Shopware Copilot**, which is the official, supported direction for AI-assisted workflows. API, tool names, and parameter shapes may change without notice. Do not rely on it for production-critical processes.
+> **Experimental demo. May be removed at any time.** This bundle is a proof of concept and an example of how to extend Shopware's MCP server. It is **not** a supported product and is **not** covered by any stability or backwards-compatibility guarantee. It can be discontinued, archived, or removed without notice, particularly in favor of **Shopware Copilot**, which is the official, supported direction for AI-assisted workflows. API, tool names, and parameter shapes may change without notice.
+>
+> **Use it to learn and experiment, not in production.** Some tools work on demo data by design. The log tools, for example, read only a synthetic log file shipped with the bundle, never your server's real logs (see [Security concerns](#security-concerns-why-the-log-tools-are-demo-only)). Do not rely on this bundle for production-critical processes, and do not enable its tools for integrations on shops that hold real customer data.
 
 ## Requirements
 

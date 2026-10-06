@@ -1,8 +1,10 @@
 # SwagMcpDevTools — Agent Guide
 
-> **⚠️ Experimental.** Proof of concept. API, tool names, parameters, and the
-> bundle's packaging model may all change. Do not build dependent tooling against
-> these interfaces yet.
+> **⚠️ Experimental demo.** Proof of concept and example bundle, not a supported
+> product. API, tool names, parameters, and the bundle's packaging model may all
+> change. Some tools work on demo data by design (the log tools read only the
+> bundled `demo.log`). Do not build dependent tooling against these interfaces
+> yet, and keep new tools safe to run as a demo.
 
 ## Purpose
 

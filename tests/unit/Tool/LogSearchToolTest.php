@@ -12,20 +12,26 @@ use Swag\McpDevTools\Mcp\Tool\LogSearchTool;
 #[CoversClass(LogSearchTool::class)]
 class LogSearchToolTest extends TestCase
 {
-    private string $logsDir;
+    private string $logFile;
 
     protected function setUp(): void
     {
-        $this->logsDir = sys_get_temp_dir() . '/mcp-log-search-' . uniqid('', true);
-        mkdir($this->logsDir);
+        $this->logFile = sys_get_temp_dir() . '/mcp-log-search-' . uniqid('', true) . '.log';
     }
 
     protected function tearDown(): void
     {
-        foreach (glob($this->logsDir . '/*') ?: [] as $file) {
-            @unlink($file);
-        }
-        @rmdir($this->logsDir);
+        @unlink($this->logFile);
+    }
+
+    public function testSearchesBundledDemoLogByDefault(): void
+    {
+        $data = json_decode((new LogSearchTool())('LineItemNotFoundException'), true, 512, \JSON_THROW_ON_ERROR);
+
+        static::assertTrue($data['success']);
+        static::assertSame('demo.log', $data['_meta']['file']);
+        static::assertTrue($data['_meta']['demo']);
+        static::assertNotEmpty($data['data']);
     }
 
     public function testErrorWhenQueryMissing(): void
@@ -41,12 +47,12 @@ class LogSearchToolTest extends TestCase
         $data = $this->invoke(['query' => 'error']);
 
         static::assertFalse($data['success']);
-        static::assertStringContainsString('Log file not found', $data['error']);
+        static::assertStringContainsString('Demo log file not found', $data['error']);
     }
 
     public function testFindsMatchingEntries(): void
     {
-        $this->writeLog('test.log', [
+        $this->writeLog([
             '[2026-04-22T10:00:00.000000+00:00] shopware.INFO: unrelated line [] []',
             '[2026-04-22T10:01:00.000000+00:00] shopware.ERROR: needle in haystack [] []',
             '[2026-04-22T10:02:00.000000+00:00] shopware.ERROR: another needle [] []',
@@ -60,7 +66,7 @@ class LogSearchToolTest extends TestCase
 
     public function testFiltersByLevel(): void
     {
-        $this->writeLog('test.log', [
+        $this->writeLog([
             '[2026-04-22T10:00:00.000000+00:00] shopware.INFO: needle [] []',
             '[2026-04-22T10:01:00.000000+00:00] shopware.ERROR: needle [] []',
         ]);
@@ -73,7 +79,7 @@ class LogSearchToolTest extends TestCase
 
     public function testReturnsRawLineWhenUnparseable(): void
     {
-        $this->writeLog('test.log', [
+        $this->writeLog([
             'malformed line containing needle but not in monolog format',
         ]);
 
@@ -89,26 +95,29 @@ class LogSearchToolTest extends TestCase
         for ($i = 0; $i < 100; ++$i) {
             $lines[] = "[2026-04-22T10:00:{$i}.000000+00:00] shopware.INFO: needle {$i} [] []";
         }
-        $this->writeLog('test.log', $lines);
+        $this->writeLog($lines);
 
         $data = $this->invoke(['query' => 'needle', 'limit' => 500]);
 
         static::assertLessThanOrEqual(50, \count($data['data']));
     }
 
-    public function testPathTraversalIsPrevented(): void
+    public function testCallerCannotChooseTheLogFile(): void
     {
-        $data = $this->invoke(['query' => 'x', 'file' => '../../../etc/passwd']);
+        $parameters = array_map(
+            static fn (\ReflectionParameter $parameter): string => $parameter->getName(),
+            (new \ReflectionMethod(LogSearchTool::class, '__invoke'))->getParameters(),
+        );
 
-        static::assertFalse($data['success']);
+        static::assertSame(['query', 'level', 'limit'], $parameters);
     }
 
     /**
      * @param list<string> $lines
      */
-    private function writeLog(string $name, array $lines): void
+    private function writeLog(array $lines): void
     {
-        file_put_contents($this->logsDir . '/' . $name, implode("\n", $lines) . "\n");
+        file_put_contents($this->logFile, implode("\n", $lines) . "\n");
     }
 
     /**
@@ -118,7 +127,7 @@ class LogSearchToolTest extends TestCase
      */
     private function invoke(array $args = []): array
     {
-        $tool = new LogSearchTool($this->logsDir, 'test');
+        $tool = new LogSearchTool($this->logFile);
         $output = $tool(...$args);
 
         return json_decode($output, true, 512, \JSON_THROW_ON_ERROR);

@@ -5,15 +5,13 @@
 
     <services>
 
+        <!-- Reads only the bundled demo log (LogStreamTool::DEMO_LOG_FILE), never %kernel.logs_dir%. -->
         <service id="Swag\McpDevTools\Mcp\Tool\LogStreamTool">
-            <argument>%kernel.logs_dir%</argument>
-            <argument>%kernel.environment%</argument>
             <tag name="shopware.mcp.tool"/>
         </service>
 
+        <!-- Reads only the bundled demo log (LogStreamTool::DEMO_LOG_FILE), never %kernel.logs_dir%. -->
         <service id="Swag\McpDevTools\Mcp\Tool\LogSearchTool">
-            <argument>%kernel.logs_dir%</argument>
-            <argument>%kernel.environment%</argument>
             <tag name="shopware.mcp.tool"/>
         </service>
 

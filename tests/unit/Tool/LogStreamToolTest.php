@@ -13,25 +13,31 @@ use Swag\McpDevTools\Mcp\Tool\LogStreamTool;
 #[CoversClass(LogStreamTool::class)]
 class LogStreamToolTest extends TestCase
 {
-    private string $logsDir;
+    private string $logFile;
 
     protected function setUp(): void
     {
-        $this->logsDir = sys_get_temp_dir() . '/mcp-log-test-' . uniqid('', true);
-        mkdir($this->logsDir);
+        $this->logFile = sys_get_temp_dir() . '/mcp-log-test-' . uniqid('', true) . '.log';
     }
 
     protected function tearDown(): void
     {
-        foreach (glob($this->logsDir . '/*') ?: [] as $file) {
-            @unlink($file);
-        }
-        @rmdir($this->logsDir);
+        @unlink($this->logFile);
     }
 
-    public function testReadsEntriesFromDefaultEnvLogFile(): void
+    public function testReadsBundledDemoLogByDefault(): void
     {
-        $this->writeLog('test.log', [
+        $data = json_decode((new LogStreamTool())(), true, 512, \JSON_THROW_ON_ERROR);
+
+        static::assertTrue($data['success']);
+        static::assertSame('demo.log', $data['_meta']['file']);
+        static::assertTrue($data['_meta']['demo']);
+        static::assertNotEmpty($data['data']);
+    }
+
+    public function testReadsEntriesNewestFirst(): void
+    {
+        $this->writeLog([
             '[2026-04-22T10:00:00.000000+00:00] shopware.INFO: first message [] []',
             '[2026-04-22T10:01:00.000000+00:00] shopware.ERROR: second message [] []',
         ]);
@@ -39,7 +45,7 @@ class LogStreamToolTest extends TestCase
         $data = $this->invoke();
 
         static::assertTrue($data['success']);
-        static::assertSame('test.log', $data['_meta']['file']);
+        static::assertSame(basename($this->logFile), $data['_meta']['file']);
         static::assertCount(2, $data['data']);
         static::assertSame('second message', $data['data'][0]['message']);
         static::assertSame('ERROR', $data['data'][0]['level']);
@@ -50,12 +56,12 @@ class LogStreamToolTest extends TestCase
         $data = $this->invoke();
 
         static::assertFalse($data['success']);
-        static::assertStringContainsString('Log file not found', $data['error']);
+        static::assertStringContainsString('Demo log file not found', $data['error']);
     }
 
     public function testFiltersByMinimumLevel(): void
     {
-        $this->writeLog('test.log', [
+        $this->writeLog([
             '[2026-04-22T10:00:00.000000+00:00] shopware.INFO: info line [] []',
             '[2026-04-22T10:01:00.000000+00:00] shopware.WARNING: warn line [] []',
             '[2026-04-22T10:02:00.000000+00:00] shopware.ERROR: error line [] []',
@@ -70,7 +76,7 @@ class LogStreamToolTest extends TestCase
 
     public function testFiltersBySinceTimestamp(): void
     {
-        $this->writeLog('test.log', [
+        $this->writeLog([
             '[2026-04-22T09:00:00.000000+00:00] shopware.INFO: old [] []',
             '[2026-04-22T10:00:00.000000+00:00] shopware.INFO: new [] []',
         ]);
@@ -81,20 +87,34 @@ class LogStreamToolTest extends TestCase
         static::assertSame('new', $data['data'][0]['message']);
     }
 
-    public function testRejectsNonLogFiles(): void
+    public function testCallerCannotChooseTheLogFile(): void
     {
-        file_put_contents($this->logsDir . '/secrets.env', 'APP_SECRET=x');
+        $parameters = array_map(
+            static fn (\ReflectionParameter $parameter): string => $parameter->getName(),
+            (new \ReflectionMethod(LogStreamTool::class, '__invoke'))->getParameters(),
+        );
 
-        $data = $this->invoke(['file' => 'secrets.env']);
-
-        static::assertFalse($data['success']);
+        static::assertSame(['level', 'since', 'limit'], $parameters);
     }
 
-    public function testPathTraversalIsPrevented(): void
+    public function testBundledDemoLogContainsNoSensitiveData(): void
     {
-        $data = $this->invoke(['file' => '../../../etc/passwd']);
+        $content = (string) file_get_contents(LogStreamTool::DEMO_LOG_FILE);
 
-        static::assertFalse($data['success']);
+        static::assertNotSame('', $content);
+        static::assertDoesNotMatchRegularExpression('/password|passwd|secret|token|bearer|authorization|api[_-]?key|private[_-]?key|credential/i', $content);
+        static::assertDoesNotMatchRegularExpression('/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i', $content, 'Demo log must not contain e-mail addresses.');
+        static::assertDoesNotMatchRegularExpression('#://[^/\s:@]+:[^@\s/]+@#', $content, 'Demo log must not contain URLs with credentials.');
+        static::assertDoesNotMatchRegularExpression('/eyJ[A-Za-z0-9_\-]{10,}\.|SW[IU]A[A-Za-z0-9]{10,}/', $content);
+
+        foreach (explode("\n", $content) as $line) {
+            $parsed = LogStreamTool::parseLine($line);
+            if ($parsed === null) {
+                continue;
+            }
+
+            static::assertStringNotContainsString('[REDACTED]', (string) json_encode($parsed['context']), $line);
+        }
     }
 
     public function testLimitCappedAt100(): void
@@ -103,7 +123,7 @@ class LogStreamToolTest extends TestCase
         for ($i = 0; $i < 150; ++$i) {
             $lines[] = "[2026-04-22T10:00:{$i}.000000+00:00] shopware.INFO: msg {$i} [] []";
         }
-        $this->writeLog('test.log', $lines);
+        $this->writeLog($lines);
 
         $data = $this->invoke(['limit' => 500]);
 
@@ -113,7 +133,7 @@ class LogStreamToolTest extends TestCase
     public function testTruncatesLongMessages(): void
     {
         $longMessage = str_repeat('A', 1000);
-        $this->writeLog('test.log', [
+        $this->writeLog([
             "[2026-04-22T10:00:00.000000+00:00] shopware.ERROR: {$longMessage} [] []",
         ]);
 
@@ -213,9 +233,9 @@ class LogStreamToolTest extends TestCase
     /**
      * @param list<string> $lines
      */
-    private function writeLog(string $name, array $lines): void
+    private function writeLog(array $lines): void
     {
-        file_put_contents($this->logsDir . '/' . $name, implode("\n", $lines) . "\n");
+        file_put_contents($this->logFile, implode("\n", $lines) . "\n");
     }
 
     /**
@@ -225,7 +245,7 @@ class LogStreamToolTest extends TestCase
      */
     private function invoke(array $args = []): array
     {
-        $tool = new LogStreamTool($this->logsDir, 'test');
+        $tool = new LogStreamTool($this->logFile);
         $output = $tool(...$args);
 
         return json_decode($output, true, 512, \JSON_THROW_ON_ERROR);

@@ -3,9 +3,10 @@
 Developer-oriented MCP tools for Shopware. Installs as a Symfony bundle alongside
 the core MCP server and extends its `/api/_mcp` endpoint with two things:
 
-1. **Diagnostics** — read-only log streaming/search and background-operation
-   notifications, so an agent can triage a running instance (including remote
-   SaaS/PaaS/staging environments the laptop-side `ai-coding-tools` can't reach).
+1. **Diagnostics** — background-operation notifications, so an agent can follow a
+   running instance (including remote SaaS/PaaS/staging environments the
+   laptop-side `ai-coding-tools` can't reach), plus **demo-only** log
+   streaming/search over a synthetic log file shipped with the bundle.
 2. **Scaffolding** — a single code-generation tool (`swag-dev-tools-scaffold`) that
    returns Shopware-accurate instructions for creating extension artifacts (plugins,
    entities, endpoints, admin UI, …) the right way, without the MCP server ever
@@ -86,13 +87,18 @@ lists are fixed at connection time, so a reconnect is required to pick them up.
 
 ## Diagnostics: logs & notifications
 
-Read-only introspection of a running instance's Monolog log files and background
-operations.
+Read-only introspection of background operations, plus a log-triage demo.
+
+> [!IMPORTANT]
+> **The log tools are a demo.** They read only `src/Resources/demo/demo.log`, a
+> synthetic Monolog file versioned with this bundle. They cannot read the server's
+> real `var/log/*.log` files, and callers cannot pick a file. See
+> [Security concerns: why the log tools are demo-only](#security-concerns-why-the-log-tools-are-demo-only).
 
 | Capability | Description |
 |------------|-------------|
-| `swag-dev-tools-log-stream` | Tool — read recent entries from a Monolog log **file** on disk (defaults to `var/log/{env}.log`). Filter by minimum level and ISO-8601 since timestamp. |
-| `swag-dev-tools-log-search` | Tool — search a Monolog log **file** for entries matching a substring. Optionally narrow by minimum level and file name. |
+| `swag-dev-tools-log-stream` | Tool — **demo only.** Read recent entries from the bundled demo log. Filter by minimum level and ISO-8601 since timestamp. |
+| `swag-dev-tools-log-search` | Tool — **demo only.** Search the bundled demo log for entries matching a substring. Optionally narrow by minimum level. |
 | `swag-dev-tools-notifications` | Tool — poll for background operation notifications (indexer completions, import/export results). Supports one-shot polling and a blocking `wait=true` mode that streams SSE progress updates until a notification arrives. |
 | `swag-dev-tools-context` | Prompt — disambiguates Monolog files, the `log_entry` DAL table, business events, and background operation notifications. Pull this when "logs" or "notifications" is ambiguous. |
 
@@ -103,7 +109,8 @@ right one:
 
 | I want to… | Use | What it is |
 |---|---|---|
-| See runtime errors, stack traces, PHP warnings, deprecations, HTTP 500 details | `swag-dev-tools-log-stream` / `-log-search` | Monolog files on disk (`var/log/*.log`) — the full runtime stream |
+| Demonstrate log triage over MCP (errors, stack traces, deprecations) | `swag-dev-tools-log-stream` / `-log-search` | The synthetic demo log shipped with this bundle — **not** the server's real logs |
+| See the server's real runtime logs | Not available over MCP | Read `var/log/*.log` on the host, or through your hosting provider's log tooling |
 | Know when indexing or an import/export finished | `swag-dev-tools-notifications` | Shopware notification entity — same data as the Admin bell icon |
 | See the Admin UI's structured log viewer entries | `shopware-entity-search` on `log_entry` | DAL entity; typically business-event logs + notification writes. **Not** a full mirror of the Monolog stream. |
 | Count or aggregate log entries | `shopware-entity-aggregate` on `log_entry` | Same DAL entity, aggregation path |
@@ -113,18 +120,12 @@ If an LLM is using these tools against a fresh session and the question is ambig
 
 ### Examples
 
-**Triage remote errors**
-- "What broke in the last hour on staging?" — `swag-dev-tools-log-stream` with `level: "ERROR"`, `since: "2026-04-22T10:00:00+00:00"`
-- "Are there any critical errors right now?" — `swag-dev-tools-log-stream` with `level: "CRITICAL"`
-
-**Pivot from an error report to context**
+**Log triage demo** (all answers come from the bundled demo log)
+- "What broke after 10:00 in the demo log?" — `swag-dev-tools-log-stream` with `level: "ERROR"`, `since: "2026-04-22T10:00:00+00:00"`
+- "Are there any critical errors in the demo log?" — `swag-dev-tools-log-stream` with `level: "CRITICAL"`
 - "Find the stack trace for 'LineItemNotFoundException'" — `swag-dev-tools-log-search` with `query: "LineItemNotFoundException"`
-- "Show log lines mentioning correlation id abc-123" — `swag-dev-tools-log-search` with `query: "abc-123"`
-- "What happened around the failed order creation?" — `swag-dev-tools-log-search` with `query: "order"`, `level: "ERROR"`
-
-**Inspect a specific log file**
-- "Read entries from prod-2026-04-22.log" — `swag-dev-tools-log-stream` with `file: "prod-2026-04-22.log"`
-- "Search dev.log for deprecation warnings" — `swag-dev-tools-log-search` with `query: "deprecated"`, `file: "dev.log"`
+- "Show log lines mentioning correlation id demo-correlation-abc-123" — `swag-dev-tools-log-search` with `query: "demo-correlation-abc-123"`
+- "Any deprecation warnings?" — `swag-dev-tools-log-search` with `query: "Deprecated"`
 
 **Monitor background operations**
 - "Run `dal:refresh:index` and tell me when it's done" — trigger the CLI command, then call `swag-dev-tools-notifications` with `wait: true`; SSE progress updates keep the connection alive until the indexer finishes
@@ -179,11 +180,23 @@ Scaffolding complements the [`shopwareLabs/ai-coding-tools`](https://github.com/
 
 ## Security & access control
 
-- **Filesystem tools require no ACL privilege.** For the log tools, access control is enforced by the MCP authentication layer plus the per-integration allowlist — there is no dedicated "read server logs" ACL privilege in Shopware, and reusing an entity privilege like `log_entry:read` (which covers the `log_entry` database table, not files on disk) would be semantically wrong. A dedicated privilege may be introduced if/when this bundle graduates out of experimental status.
+- **The log tools read only the bundled demo log.** The file path is a class constant, not a parameter, so no caller can point the tools at `var/log/` or anywhere else. Because the demo data is synthetic and public, the log tools need no ACL privilege. Access is still gated by MCP authentication and the per-integration allowlist.
 - **DAL-backed tools honour the caller's ACL.** `swag-dev-tools-list-extensions` requires `plugin:read` / `app:read`. `swag-dev-tools-notifications` reads through core's `NotificationService`, so `adminOnly` notifications and those carrying `requiredPrivileges` are filtered against the caller's role — an MCP caller sees exactly what the same credential would see from `GET /api/notification/message`, and nothing more. The skill tools degrade gracefully: without `plugin:read` / `app:read` they list the project's own skills but not extension-shipped ones.
-- **Diagnostics tools are read-only.** They parse Monolog's default line format and **redact sensitive fields** (password, token, secret, api_key, Authorization headers, Bearer tokens, JWTs, Shopware `SWIA`/`SWUA` integration keys). Values longer than 300 characters are truncated.
-- **Log file access is sandboxed.** Only files within `%kernel.logs_dir%` with a `.log` extension are readable; path traversal (`../`) is prevented.
+- **Diagnostics tools are read-only.** The log tools parse Monolog's default line format. They keep a best-effort redaction of structured context (password, token, secret, api_key, Authorization headers, Bearer tokens, JWTs, Shopware `SWIA`/`SWUA` integration keys) as a backstop, and truncate values longer than 300 characters. Redaction is **not** a security boundary; the demo-only scope is.
 - **Scaffolding never writes to disk.** `swag-dev-tools-scaffold` returns instructions only; the connected agent does any file writes with its own tools, and the skill loader is constrained to the `.agents/skills/` directories (no path traversal).
+
+### Security concerns: why the log tools are demo-only
+
+Earlier versions read any `*.log` file in `%kernel.logs_dir%` and relied on redaction to keep secrets out of responses. That was not safe, and it is the reason the scope is now limited to a demo file:
+
+- **Real logs contain secrets in free text.** Exception messages routinely embed connection strings with passwords, API client secrets and signed URLs. Redaction only covered structured `context`/`extra` fields, so the `message` field and lines that don't match the Monolog line format were returned unredacted.
+- **Real logs contain customer PII.** Payment and ERP integrations log full API request and response bodies, including names, e-mail addresses and shipping addresses, often at `DEBUG`. Production `fingers_crossed` handlers flush those buffered `DEBUG` lines to disk whenever an error occurs.
+- **Real logs contain other callers' requests.** The MCP SDK logs every incoming JSON-RPC message at `INFO`, including tool arguments sent by other integrations.
+- **Search over raw text is an oracle.** Matching the query against the raw line lets a caller recover a secret one character at a time from hit/no-hit answers, even if the returned entry is redacted.
+- **Redaction is a blocklist and will always be incomplete.** It cannot be the only control between an integration and the server's logs.
+- **There is no ACL privilege for server logs.** Any integration with the tool allowlisted could read the logs, regardless of its role, including integrations with no privileges at all.
+
+If you need real-log access over MCP in your own project, treat it as privileged: restrict it to admin integrations and non-production environments, read only dedicated log files your own code writes, and never expose `var/log/{env}.log` wholesale.
 
 ## Development
 

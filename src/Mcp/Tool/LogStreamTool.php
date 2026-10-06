@@ -9,7 +9,7 @@ use Shopware\Core\Framework\Mcp\Tool\McpToolResponse;
 #[McpTool(
     name: 'swag-dev-tools-log-stream',
     title: 'Log Stream',
-    description: 'Read recent entries from a Monolog application log FILE on disk (default: var/log/{env}.log). Contains the full runtime stream: PHP errors, stack traces, deprecation warnings, framework events, and everything bundles write via Monolog handlers. Filter by minimum level (DEBUG/INFO/NOTICE/WARNING/ERROR/CRITICAL/ALERT/EMERGENCY) and ISO-8601 since timestamp. Use this for "what broke on the server?", "show me the last stack trace", "any PHP deprecations recently?". DO NOT use this for the log_entry database table (structured DAL entity for business events / Admin-visible notifications) — query that with shopware-entity-search on entity "log_entry" instead.',
+    description: 'DEMO ONLY: read recent entries from the synthetic demo log shipped inside this bundle (Monolog line format). It does NOT read the server\'s real var/log files; that was removed on purpose, because real logs can contain credentials and customer data. Filter by minimum level (DEBUG/INFO/NOTICE/WARNING/ERROR/CRITICAL/ALERT/EMERGENCY) and ISO-8601 since timestamp. Use this to demonstrate log triage over MCP. DO NOT use this for the log_entry database table; query that with shopware-entity-search on entity "log_entry" instead.',
 )]
 #[McpToolGroup('dev-logs')]
 class LogStreamTool extends McpToolResponse
@@ -24,6 +24,12 @@ class LogStreamTool extends McpToolResponse
         'ALERT' => 550,
         'EMERGENCY' => 600,
     ];
+    /**
+     * The only file the log tools can read: a synthetic, versioned demo log shipped with the bundle.
+     * Real runtime logs are deliberately out of reach (see README "Security & access control").
+     */
+    public const DEMO_LOG_FILE = __DIR__ . '/../../Resources/demo/demo.log';
+
     private const MAX_LIMIT = 100;
 
     /**
@@ -44,30 +50,24 @@ class LogStreamTool extends McpToolResponse
     private const SENSITIVE_VALUE_REGEX = '/^(?:Bearer\s+\S+|eyJ[A-Za-z0-9_\-]{10,}\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+|SW[IU]A[A-Za-z0-9+\/=_\-]{20,})$/';
 
     public function __construct(
-        private readonly string $logsDir,
-        private readonly string $environment,
+        private readonly string $logFile = self::DEMO_LOG_FILE,
     ) {
     }
 
     public function __invoke(
-        string $file = '',
         string $level = '',
         string $since = '',
         int $limit = 50,
     ): string {
-        $logFile = $this->resolveFile($file);
-        if ($logFile === null) {
-            return $this->error(\sprintf(
-                'Log file not found. Available files: %s',
-                implode(', ', $this->listLogFiles()),
-            ));
+        if (!is_file($this->logFile) || !is_readable($this->logFile)) {
+            return $this->error('Demo log file not found. The bundle installation is incomplete.');
         }
 
         $effectiveLimit = min($limit, self::MAX_LIMIT);
         $minLevel = $level !== '' ? (self::LEVEL_MAP[strtoupper($level)] ?? null) : null;
         $sinceTs = $since !== '' ? strtotime($since) : null;
 
-        $lines = $this->readRecentLines($logFile, $effectiveLimit * 5);
+        $lines = $this->readRecentLines($this->logFile, $effectiveLimit * 5);
 
         $entries = [];
         foreach ($lines as $line) {
@@ -92,7 +92,8 @@ class LogStreamTool extends McpToolResponse
         }
 
         return $this->success($entries, [
-            'file' => basename($logFile),
+            'file' => basename($this->logFile),
+            'demo' => true,
             'count' => \count($entries),
         ]);
     }
@@ -162,29 +163,6 @@ class LogStreamTool extends McpToolResponse
         }
 
         return $result;
-    }
-
-    private function resolveFile(string $file): ?string
-    {
-        $name = $file !== '' ? basename($file) : $this->environment . '.log';
-
-        if (!str_ends_with($name, '.log')) {
-            return null;
-        }
-
-        $path = $this->logsDir . \DIRECTORY_SEPARATOR . $name;
-
-        return (is_file($path) && is_readable($path)) ? $path : null;
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function listLogFiles(): array
-    {
-        $files = glob($this->logsDir . '/*.log') ?: [];
-
-        return array_map('basename', $files);
     }
 
     /**

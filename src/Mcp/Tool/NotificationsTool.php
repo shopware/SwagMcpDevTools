@@ -23,7 +23,7 @@ use Shopware\Core\Framework\Notification\NotificationService;
 #[McpTool(
     name: 'swag-dev-tools-notifications',
     title: 'Notifications',
-    description: 'Poll for Shopware background operation notifications: indexer completions, import/export results. Use after triggering long-running operations like dal:refresh:index or import jobs. Set wait=true to block until a notification arrives — streams progress updates via SSE up to timeout seconds. Use since=<ISO-8601> for incremental polling; pass the returned timestamp as since on the next call to get only new events. DO NOT use this for runtime PHP errors or stack traces — use swag-dev-tools-log-stream instead. DO NOT use this for structured business event logs — query entity "log_entry" with shopware-entity-search instead.',
+    description: 'Poll for Shopware background operation notifications: indexer completions, import/export results. Use after triggering long-running operations like dal:refresh:index or import jobs. Set wait=true to block until a notification arrives — streams progress updates via SSE up to timeout seconds. Use since=<ISO-8601> for incremental polling; pass the returned timestamp as since on the next call to get only new events. DO NOT use this for runtime PHP errors or stack traces — the server\'s real log files are not exposed over MCP and must be read on the host (swag-dev-tools-log-stream only reads a synthetic demo log, never real server logs). DO NOT use this for structured business event logs — query entity "log_entry" with shopware-entity-search instead.',
 )]
 #[McpToolGroup('dev-extensions')]
 class NotificationsTool extends McpToolResponse

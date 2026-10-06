@@ -1,16 +1,18 @@
 # SwagMcpDevTools — Agent Guide
 
-> **⚠️ Experimental.** Proof of concept. API, tool names, parameters, and the
-> bundle's packaging model may all change. Do not build dependent tooling against
-> these interfaces yet.
+> **⚠️ Experimental demo.** Proof of concept and example bundle, not a supported
+> product. API, tool names, parameters, and the bundle's packaging model may all
+> change. Some tools work on demo data by design (the log tools read only the
+> bundled `demo.log`). Do not build dependent tooling against these interfaces
+> yet, and keep new tools safe to run as a demo.
 
 ## Purpose
 
-This bundle provides developer-facing MCP diagnostic tools for Shopware. Its tools sit on top of the platform primitives in core and offer read-only log introspection that a developer would run against a remote instance — staging, production, SaaS environments — that the laptop-side `ai-coding-tools` cannot reach.
+This bundle provides developer-facing MCP diagnostic tools for Shopware. Its tools sit on top of the platform primitives in core and offer read-only introspection that a developer would run against a remote instance — staging, production, SaaS environments — that the laptop-side `ai-coding-tools` cannot reach. The log tools are the exception: they are a **demo** over a synthetic log file shipped with the bundle and never read the server's real logs (see "Log tools are demo-only" below).
 
 ## What belongs here
 
-- Developer/operator diagnostics: log streaming, log search, background operation notifications, (future) cache stats, (future) queue depth, (future) cron health
+- Developer/operator diagnostics: background operation notifications, demo log streaming/search, (future) cache stats, (future) queue depth, (future) cron health
 - Introspection of runtime state that lives on the Shopware host (filesystem, process state)
 - Tools that need disk access, OPcache, or other host-level resources the core tools intentionally don't touch
 - Event subscribers that write lightweight completion signals to existing Shopware entities (e.g. `notification`) for consumption by the MCP tools above
@@ -68,11 +70,12 @@ Feature-flag guard: each tool service carries `<tag name="shopware.feature" flag
 - MCP **tools** in this bundle are read-only. No `dryRun`, no write paths, no transactions inside tool invocations
 - **Event subscribers** may write to existing Shopware entities (currently `notification` via `NotificationService`) to persist signals for the tools to read. Use `Context::createDefaultContext()` — `NotificationService::createNotification()` elevates to system scope internally. This applies to *subscribers only*, which run without a caller; tools must never do it (next-but-one bullet)
 - For tools that need to stream progress during long-running waits, declare `RequestContext $context` as the first `__invoke` parameter — the MCP SDK injects it automatically via type hint. Call `$context->getClientGateway()->progress(float, ?float, string)` to send SSE progress notifications; it silently no-ops if the client did not send a `progressToken`
-- **ACL depends on what the tool reads.** *Filesystem* tools (log stream/search) carry no privilege check: Shopware has no dedicated "read server logs" privilege, and reusing an entity privilege like `log_entry:read` (DAL table, not filesystem) would be semantically wrong — access is gated by MCP authentication + the per-integration allowlist. *DAL-backed* tools are different: they must inject `McpContextProvider`, read with the caller's `Context`, and gate on the entity's privilege. **Never call `Context::createDefaultContext()` inside a tool** — that forges a `SystemSource`, discarding the caller's identity, and any `SYSTEM_SCOPE` elevation on top of it silently bypasses both ACL and the entity's `ReadProtection`
-- Declare `#[McpToolRequires]` on any tool that calls `requirePrivilege()`, so the Admin UI coverage warning stays accurate (`ListExtensionsTool` declares `plugin:read` + `app:read`). Filesystem tools have nothing to declare and carry no attribute
+- **ACL depends on what the tool reads.** The log tools carry no privilege check because they only read the synthetic, public demo log. *DAL-backed* tools are different: they must inject `McpContextProvider`, read with the caller's `Context`, and gate on the entity's privilege. **Never call `Context::createDefaultContext()` inside a tool** — that forges a `SystemSource`, discarding the caller's identity, and any `SYSTEM_SCOPE` elevation on top of it silently bypasses both ACL and the entity's `ReadProtection`
+- Declare `#[McpToolRequires]` on any tool that calls `requirePrivilege()`, so the Admin UI coverage warning stays accurate (`ListExtensionsTool` declares `plugin:read` + `app:read`). The demo log tools have nothing to declare and carry no attribute
 - **Protected entities go through their service, not the repository.** `notification` declares `ReadProtection(Context::SYSTEM_SCOPE)` *and* filters per caller (`adminOnly`, `requiredPrivileges`). `NotificationsTool` therefore delegates to `NotificationService::getNotifications()` — the same path `GET /api/notification/message` uses — rather than reading `notification.repository` under an elevated scope. Reading the repository directly returns every notification in the shop to any caller
-- Do not read arbitrary paths. Always resolve files inside `%kernel.logs_dir%` and enforce an allowlisted extension (`.log`). Use `basename()` to strip traversal segments
-- Redact sensitive fields aggressively. Field-name redaction (normalized camelCase → snake_case, whole-token match) + value-shape redaction (`Bearer ...`, JWTs, `SW[IU]A...` integration keys). Truncate long string values to 300 chars
+- **Log tools are demo-only. Do not reintroduce real-log access.** `LogStreamTool` and `LogSearchTool` read only `LogStreamTool::DEMO_LOG_FILE` (`src/Resources/demo/demo.log`). Never add a `file`/`path` parameter, never inject `%kernel.logs_dir%`, and never read `var/log/{env}.log`. Real logs carry secrets in free-text exception messages, customer PII from payment-SDK request/response bodies, and other callers' MCP requests (the SDK logs every JSON-RPC message). Redaction cannot make that safe, and there is no ACL privilege to gate it. The README section "Security concerns: why the log tools are demo-only" has the full reasoning
+- Keep `demo.log` synthetic. No e-mail addresses, credentials, tokens, real hostnames or customer data. `LogStreamToolTest::testBundledDemoLogContainsNoSensitiveData` enforces this
+- The existing redaction (field-name + value-shape) stays as a backstop only. It is not a security boundary. Truncate long string values to 300 chars
 - Cap response sizes. Tail-read from the end of the file, apply limits server-side before serializing
 
 ## Tests
@@ -81,7 +84,7 @@ Unit tests live in `tests/unit/`. Subdirectories mirror `src/` (`Tool/`, `Event/
 
 - **Prompt tests** — instantiate the prompt, invoke `__invoke(...)` with sample args, assert the single-user-message envelope (via the `ScaffoldPromptAssertions` trait) and that the content contains the artifact's non-negotiable reminders (e.g. admin-endpoint → `_acl`, store-api → `DecorationPatternException`, extend-plugin → "never edit vendor"). Prompts are pure — no mocks needed. Support tools that read the DAL (`ListExtensionsTool`, skill tools) mock `EntityRepository` and return an `EntitySearchResult`; skill tools also build a temp `.agents/skills/` fixture and assert graceful absence + path-traversal rejection
 
-- **Tool tests** — mock `EntityRepository` and `RequestContext`/`ClientGateway`. For file-based tools, create a temp log directory in `setUp()`, write fake Monolog lines, invoke the tool, assert on the JSON response
+- **Tool tests** — mock `EntityRepository` and `RequestContext`/`ClientGateway`. For the log tools, pass a temp file path to the constructor, write fake Monolog lines, invoke the tool, assert on the JSON response
 - **Event subscriber tests** — mock `NotificationService`, construct events with mocked entities, call the handler directly, assert `createNotification` was called with expected params
 - Pattern assertions for redaction go through a `#[DataProvider]` with positive + negative cases (`password` → redact; `monkey` → pass)
 - The `wait=true` path can be tested without real sleeps: use `timeout=0` to force immediate timeout (loop body never executes), or mock the repository to return data on the first call so the tool returns before any `sleep()`

@@ -1,6 +1,6 @@
 {
     "name": "swag/mcp-dev-tools",
-    "description": "Developer-oriented MCP tools for remote Shopware instance introspection — log streaming and search over the native /api/_mcp endpoint",
+    "description": "Developer-oriented MCP tools for Shopware over the native /api/_mcp endpoint: notifications, scaffolding guidance and a demo-only log stream/search",
     "version": "0.0.1",
     "type": "library",
     "license": "MIT",

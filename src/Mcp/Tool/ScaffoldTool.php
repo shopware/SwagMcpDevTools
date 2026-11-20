@@ -6,6 +6,7 @@ use Mcp\Capability\Attribute\McpPrompt;
 use Mcp\Capability\Attribute\McpTool;
 use Shopware\Core\Framework\Mcp\Attribute\McpToolDependsOn;
 use Shopware\Core\Framework\Mcp\Attribute\McpToolGroup;
+use Shopware\Core\Framework\Mcp\Result\McpToolResult;
 use Shopware\Core\Framework\Mcp\Tool\McpToolResponse;
 use Swag\McpDevTools\Mcp\Prompt\Scaffold\AbstractScaffoldPrompt;
 
@@ -51,17 +52,17 @@ class ScaffoldTool extends McpToolResponse
         ksort($this->scaffolds);
     }
 
-    public function __invoke(string $type = '', string $options = ''): string
+    public function __invoke(string $type = '', string $options = ''): McpToolResult
     {
         if ($type === '') {
-            return $this->success($this->catalog(), [
+            return McpToolResult::success($this->catalog(), [
                 'count' => \count($this->scaffolds),
                 'usage' => 'Call again with type=<type> and options (a JSON object keyed by the listed argument names) to get generation instructions.',
             ]);
         }
 
         if (!isset($this->scaffolds[$type])) {
-            return $this->error(\sprintf(
+            return McpToolResult::failure(\sprintf(
                 'Unknown scaffold type "%s". Available: %s',
                 $type,
                 implode(', ', array_keys($this->scaffolds)),
@@ -72,12 +73,12 @@ class ScaffoldTool extends McpToolResponse
         if ($options !== '') {
             $decoded = json_decode($options, true);
             if (!\is_array($decoded)) {
-                return $this->error('options must be a JSON object, e.g. {"target":"SwagFoo","path":"/store-api/example"}');
+                return McpToolResult::failure('options must be a JSON object, e.g. {"target":"SwagFoo","path":"/store-api/example"}');
             }
             $args = $decoded;
         }
 
-        return $this->success([
+        return McpToolResult::success([
             'type' => $type,
             'instructions' => $this->build($this->scaffolds[$type], $args),
         ]);

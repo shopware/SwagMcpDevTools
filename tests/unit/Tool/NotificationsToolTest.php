@@ -14,6 +14,8 @@ use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\EntitySearchResult;
 use Shopware\Core\Framework\Mcp\Context\McpContextProvider;
+use Shopware\Core\Framework\Mcp\Result\McpToolError;
+use Shopware\Core\Framework\Mcp\Result\McpToolResult;
 use Shopware\Core\Framework\Notification\NotificationCollection;
 use Shopware\Core\Framework\Notification\NotificationEntity;
 use Shopware\Core\Framework\Notification\NotificationService;
@@ -55,12 +57,12 @@ class NotificationsToolTest extends TestCase
     {
         $this->mockServiceResult(new NotificationCollection(), null);
 
-        $data = $this->invoke($this->makeContext());
+        $result = $this->invoke($this->makeContext());
 
-        static::assertTrue($data['success']);
-        static::assertSame(0, $data['data']['count']);
-        static::assertNull($data['data']['timestamp']);
-        static::assertSame([], $data['data']['notifications']);
+        static::assertFalse($result->isError());
+        static::assertSame(0, $result->data['count']);
+        static::assertNull($result->data['timestamp']);
+        static::assertSame([], $result->data['notifications']);
     }
 
     public function testReturnsNotifications(): void
@@ -68,14 +70,14 @@ class NotificationsToolTest extends TestCase
         $notification = $this->makeNotification('abc123', 'success', 'Indexer \'product.indexer\' finished.');
         $this->mockServiceResult(new NotificationCollection([$notification]), '2026-04-30 10:00:00.000');
 
-        $data = $this->invoke($this->makeContext());
+        $result = $this->invoke($this->makeContext());
 
-        static::assertTrue($data['success']);
-        static::assertSame(1, $data['data']['count']);
-        static::assertSame('abc123', $data['data']['notifications'][0]['id']);
-        static::assertSame('success', $data['data']['notifications'][0]['status']);
-        static::assertSame('Indexer \'product.indexer\' finished.', $data['data']['notifications'][0]['message']);
-        static::assertSame('2026-04-30T10:00:00.000+00:00', $data['data']['timestamp']);
+        static::assertFalse($result->isError());
+        static::assertSame(1, $result->data['count']);
+        static::assertSame('abc123', $result->data['notifications'][0]['id']);
+        static::assertSame('success', $result->data['notifications'][0]['status']);
+        static::assertSame('Indexer \'product.indexer\' finished.', $result->data['notifications'][0]['message']);
+        static::assertSame('2026-04-30T10:00:00.000+00:00', $result->data['timestamp']);
     }
 
     /**
@@ -130,10 +132,10 @@ class NotificationsToolTest extends TestCase
         $this->repository->expects($this->once())->method('search')->willReturn($result);
 
         $tool = new NotificationsTool($this->repository, $this->notificationService, $contextProvider);
-        $data = json_decode(($tool)($this->makeContext()), true, 512, \JSON_THROW_ON_ERROR);
+        $result = ($tool)($this->makeContext());
 
-        static::assertSame(1, $data['data']['count']);
-        static::assertSame('cli1', $data['data']['notifications'][0]['id']);
+        static::assertSame(1, $result->data['count']);
+        static::assertSame('cli1', $result->data['notifications'][0]['id']);
     }
 
     public function testWaitModeReturnsImmediatelyWhenNotificationPresent(): void
@@ -141,21 +143,21 @@ class NotificationsToolTest extends TestCase
         $notification = $this->makeNotification('xyz', 'info', 'done');
         $this->mockServiceResult(new NotificationCollection([$notification]), '2026-04-30 10:00:00.000');
 
-        $data = $this->invoke($this->makeContext(), wait: true);
+        $result = $this->invoke($this->makeContext(), wait: true);
 
-        static::assertTrue($data['success']);
-        static::assertSame(1, $data['data']['count']);
+        static::assertFalse($result->isError());
+        static::assertSame(1, $result->data['count']);
     }
 
     public function testWaitModeTimesOutWithoutNotifications(): void
     {
         $this->mockServiceResult(new NotificationCollection(), null);
 
-        $data = $this->invoke($this->makeContext(), wait: true, timeout: 0);
+        $result = $this->invoke($this->makeContext(), wait: true, timeout: 0);
 
-        static::assertTrue($data['success']);
-        static::assertTrue($data['data']['timeout']);
-        static::assertSame(0, $data['data']['count']);
+        static::assertFalse($result->isError());
+        static::assertTrue($result->data['timeout']);
+        static::assertSame(0, $result->data['count']);
     }
 
     /**
@@ -168,9 +170,9 @@ class NotificationsToolTest extends TestCase
     {
         $this->mockServiceResult(new NotificationCollection(), '2026-04-30 10:00:00.500');
 
-        $data = $this->invoke($this->makeContext());
+        $result = $this->invoke($this->makeContext());
 
-        static::assertSame('2026-04-30T10:00:00.500+00:00', $data['data']['timestamp']);
+        static::assertSame('2026-04-30T10:00:00.500+00:00', $result->data['timestamp']);
     }
 
     /**
@@ -186,10 +188,12 @@ class NotificationsToolTest extends TestCase
         $this->repository->expects($this->never())->method('search');
 
         $tool = new NotificationsTool($this->repository, $this->notificationService, $contextProvider);
-        $data = json_decode(($tool)($this->makeContext()), true, 512, \JSON_THROW_ON_ERROR);
+        $result = ($tool)($this->makeContext());
 
-        static::assertFalse($data['success']);
-        static::assertStringContainsString('Unsupported context source', $data['error']);
+        static::assertTrue($result->isError());
+        static::assertNotNull($result->error);
+        static::assertSame(McpToolError::TOOL_ERROR, $result->error->code);
+        static::assertStringContainsString('Unsupported context source', $result->error->message);
     }
 
     /**
@@ -217,9 +221,9 @@ class NotificationsToolTest extends TestCase
             ->willReturn($result);
 
         $tool = new NotificationsTool($this->repository, $this->notificationService, $contextProvider);
-        $data = json_decode(($tool)($this->makeContext()), true, 512, \JSON_THROW_ON_ERROR);
+        $result = ($tool)($this->makeContext());
 
-        static::assertTrue($data['success']);
+        static::assertFalse($result->isError());
     }
 
     /**
@@ -250,20 +254,20 @@ class NotificationsToolTest extends TestCase
                 ];
             });
 
-        $data = $this->invoke($this->makeContext(), wait: true, timeout: 60);
+        $result = $this->invoke($this->makeContext(), wait: true, timeout: 60);
 
         static::assertSame([null, '2026-04-30T10:00:00.500+00:00'], $seen);
-        static::assertSame(1, $data['data']['count']);
+        static::assertSame(1, $result->data['count']);
     }
 
     public function testTimeoutHandsBackTheCursorSoTheCallerCanResume(): void
     {
         $this->mockServiceResult(new NotificationCollection(), null);
 
-        $data = $this->invoke($this->makeContext(), since: '2026-04-30T09:00:00.000+00:00', wait: true, timeout: 0);
+        $result = $this->invoke($this->makeContext(), since: '2026-04-30T09:00:00.000+00:00', wait: true, timeout: 0);
 
-        static::assertTrue($data['data']['timeout']);
-        static::assertSame('2026-04-30T09:00:00.000+00:00', $data['data']['timestamp']);
+        static::assertTrue($result->data['timeout']);
+        static::assertSame('2026-04-30T09:00:00.000+00:00', $result->data['timestamp']);
     }
 
     private function adminApiContext(): Context
@@ -298,18 +302,13 @@ class NotificationsToolTest extends TestCase
             ->willReturn(['notifications' => $collection, 'timestamp' => $timestamp]);
     }
 
-    /**
-     * @return array<string, mixed>
-     */
     private function invoke(
         RequestContext $context,
         ?string $since = null,
         int $limit = 20,
         bool $wait = false,
         int $timeout = 60,
-    ): array {
-        $output = ($this->tool)($context, $since, $limit, $wait, $timeout);
-
-        return json_decode($output, true, 512, \JSON_THROW_ON_ERROR);
+    ): McpToolResult {
+        return ($this->tool)($context, $since, $limit, $wait, $timeout);
     }
 }

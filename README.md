@@ -19,7 +19,7 @@ the core MCP server and extends its `/api/_mcp` endpoint with two things:
 
 ## Requirements
 
-- Shopware 6.7.11.0+ (experimental; stable target 6.8)
+- Shopware 6.7.16.0+ (experimental; stable target 6.8). Tools return `McpToolResult`, which 6.7.16.0 is the first release to render
 - Installed via Composer (`composer require swag/mcp-dev-tools`) — the bundle is loaded behind an `InstalledVersions::isInstalled('swag/mcp-dev-tools')` guard in `config/bundles.php`, so it is only active when Composer knows the package (see [Installation](#installation))
 - `MCP_SERVER=1` in `.env`
 - A valid MCP integration (credentials in your client config)

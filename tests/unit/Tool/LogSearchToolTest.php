@@ -4,6 +4,8 @@ namespace Swag\McpDevTools\Tests\Unit\Tool;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use Shopware\Core\Framework\Mcp\Result\McpToolError;
+use Shopware\Core\Framework\Mcp\Result\McpToolResult;
 use Swag\McpDevTools\Mcp\Tool\LogSearchTool;
 
 /**
@@ -26,28 +28,33 @@ class LogSearchToolTest extends TestCase
 
     public function testSearchesBundledDemoLogByDefault(): void
     {
-        $data = json_decode((new LogSearchTool())('LineItemNotFoundException'), true, 512, \JSON_THROW_ON_ERROR);
+        $result = (new LogSearchTool())('LineItemNotFoundException');
 
-        static::assertTrue($data['success']);
-        static::assertSame('demo.log', $data['_meta']['file']);
-        static::assertTrue($data['_meta']['demo']);
-        static::assertNotEmpty($data['data']);
+        static::assertFalse($result->isError());
+        static::assertSame('demo.log', $result->meta['file']);
+        static::assertTrue($result->meta['demo']);
+        static::assertIsArray($result->data);
+        static::assertNotSame([], $result->data);
     }
 
     public function testErrorWhenQueryMissing(): void
     {
-        $data = $this->invoke();
+        $result = $this->invoke();
 
-        static::assertFalse($data['success']);
-        static::assertStringContainsString('query is required', $data['error']);
+        static::assertTrue($result->isError());
+        static::assertNotNull($result->error);
+        static::assertSame(McpToolError::TOOL_ERROR, $result->error->code);
+        static::assertStringContainsString('query is required', $result->error->message);
     }
 
     public function testReturnsErrorWhenLogFileMissing(): void
     {
-        $data = $this->invoke(['query' => 'error']);
+        $result = $this->invoke(['query' => 'error']);
 
-        static::assertFalse($data['success']);
-        static::assertStringContainsString('Demo log file not found', $data['error']);
+        static::assertTrue($result->isError());
+        static::assertNotNull($result->error);
+        static::assertSame(McpToolError::TOOL_ERROR, $result->error->code);
+        static::assertStringContainsString('Demo log file not found', $result->error->message);
     }
 
     public function testFindsMatchingEntries(): void
@@ -58,10 +65,10 @@ class LogSearchToolTest extends TestCase
             '[2026-04-22T10:02:00.000000+00:00] shopware.ERROR: another needle [] []',
         ]);
 
-        $data = $this->invoke(['query' => 'needle']);
+        $result = $this->invoke(['query' => 'needle']);
 
-        static::assertTrue($data['success']);
-        static::assertCount(2, $data['data']);
+        static::assertFalse($result->isError());
+        static::assertCount(2, $result->data);
     }
 
     public function testFiltersByLevel(): void
@@ -71,10 +78,10 @@ class LogSearchToolTest extends TestCase
             '[2026-04-22T10:01:00.000000+00:00] shopware.ERROR: needle [] []',
         ]);
 
-        $data = $this->invoke(['query' => 'needle', 'level' => 'ERROR']);
+        $result = $this->invoke(['query' => 'needle', 'level' => 'ERROR']);
 
-        static::assertCount(1, $data['data']);
-        static::assertSame('ERROR', $data['data'][0]['level']);
+        static::assertCount(1, $result->data);
+        static::assertSame('ERROR', $result->data[0]['level']);
     }
 
     public function testReturnsRawLineWhenUnparseable(): void
@@ -83,10 +90,10 @@ class LogSearchToolTest extends TestCase
             'malformed line containing needle but not in monolog format',
         ]);
 
-        $data = $this->invoke(['query' => 'needle']);
+        $result = $this->invoke(['query' => 'needle']);
 
-        static::assertCount(1, $data['data']);
-        static::assertArrayHasKey('raw', $data['data'][0]);
+        static::assertCount(1, $result->data);
+        static::assertArrayHasKey('raw', $result->data[0]);
     }
 
     public function testRespectsMaxLimit(): void
@@ -97,9 +104,9 @@ class LogSearchToolTest extends TestCase
         }
         $this->writeLog($lines);
 
-        $data = $this->invoke(['query' => 'needle', 'limit' => 500]);
+        $result = $this->invoke(['query' => 'needle', 'limit' => 500]);
 
-        static::assertLessThanOrEqual(50, \count($data['data']));
+        static::assertLessThanOrEqual(50, \count($result->data));
     }
 
     public function testCallerCannotChooseTheLogFile(): void
@@ -122,14 +129,11 @@ class LogSearchToolTest extends TestCase
 
     /**
      * @param array<string, mixed> $args
-     *
-     * @return array<string, mixed>
      */
-    private function invoke(array $args = []): array
+    private function invoke(array $args = []): McpToolResult
     {
         $tool = new LogSearchTool($this->logFile);
-        $output = $tool(...$args);
 
-        return json_decode($output, true, 512, \JSON_THROW_ON_ERROR);
+        return $tool(...$args);
     }
 }

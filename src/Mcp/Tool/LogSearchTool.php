@@ -4,6 +4,7 @@ namespace Swag\McpDevTools\Mcp\Tool;
 
 use Mcp\Capability\Attribute\McpTool;
 use Shopware\Core\Framework\Mcp\Attribute\McpToolGroup;
+use Shopware\Core\Framework\Mcp\Result\McpToolResult;
 use Shopware\Core\Framework\Mcp\Tool\McpToolResponse;
 
 #[McpTool(
@@ -26,13 +27,13 @@ class LogSearchTool extends McpToolResponse
         string $query = '',
         string $level = '',
         int $limit = 20,
-    ): string {
+    ): McpToolResult {
         if ($query === '') {
-            return $this->error('query is required');
+            return McpToolResult::failure('query is required');
         }
 
         if (!is_file($this->logFile) || !is_readable($this->logFile)) {
-            return $this->error('Demo log file not found. The bundle installation is incomplete.');
+            return McpToolResult::failure('Demo log file not found. The bundle installation is incomplete.');
         }
 
         $effectiveLimit = min($limit, self::MAX_LIMIT);
@@ -63,7 +64,7 @@ class LogSearchTool extends McpToolResponse
             $entries[] = $parsed;
         }
 
-        return $this->success($entries, [
+        return McpToolResult::success($entries, [
             'file' => basename($this->logFile),
             'demo' => true,
             'count' => \count($entries),

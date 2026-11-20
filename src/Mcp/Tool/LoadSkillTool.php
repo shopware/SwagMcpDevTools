@@ -9,6 +9,7 @@ use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
 use Shopware\Core\Framework\Mcp\Attribute\McpToolGroup;
 use Shopware\Core\Framework\Mcp\Context\McpContextProvider;
+use Shopware\Core\Framework\Mcp\Result\McpToolResult;
 use Shopware\Core\Framework\Mcp\Tool\McpToolResponse;
 use Shopware\Core\Framework\Plugin\PluginCollection;
 use Shopware\Core\Framework\Plugin\PluginEntity;
@@ -36,22 +37,22 @@ class LoadSkillTool extends McpToolResponse
     ) {
     }
 
-    public function __invoke(string $name = ''): string
+    public function __invoke(string $name = ''): McpToolResult
     {
         if ($name === '') {
-            return $this->error('name is required (e.g. "shopware-php-code"). Use swag-dev-tools-list-skills to discover available skills.');
+            return McpToolResult::failure('name is required (e.g. "shopware-php-code"). Use swag-dev-tools-list-skills to discover available skills.');
         }
 
         $body = $this->readSkill($this->projectDir, $this->extensionRoots(), $name);
 
         if ($body === null) {
-            return $this->error(\sprintf(
+            return McpToolResult::failure(\sprintf(
                 'Skill "%s" not found. It may not exist, or this install does not ship .agents/skills (e.g. a production/composer install). Use swag-dev-tools-list-skills to see what is available.',
                 $name,
             ));
         }
 
-        return $this->success(['name' => $name, 'body' => $body]);
+        return McpToolResult::success(['name' => $name, 'body' => $body]);
     }
 
     /**

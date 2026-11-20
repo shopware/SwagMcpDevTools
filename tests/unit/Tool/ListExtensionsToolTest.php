@@ -11,6 +11,7 @@ use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\EntitySearchResult;
 use Shopware\Core\Framework\Mcp\Context\McpContextProvider;
+use Shopware\Core\Framework\Mcp\Result\McpToolError;
 use Shopware\Core\Framework\Plugin\PluginCollection;
 use Shopware\Core\Framework\Plugin\PluginEntity;
 use Swag\McpDevTools\Mcp\Tool\ListExtensionsTool;
@@ -33,13 +34,13 @@ class ListExtensionsToolTest extends TestCase
             $this->contextProvider(['plugin:read', 'app:read']),
         );
 
-        $data = json_decode($tool(), true);
+        $result = $tool();
 
-        static::assertTrue($data['success']);
-        static::assertCount(2, $data['data']);
+        static::assertFalse($result->isError());
+        static::assertCount(2, $result->data);
 
         $byName = [];
-        foreach ($data['data'] as $row) {
+        foreach ($result->data as $row) {
             $byName[$row['name']] = $row;
         }
 
@@ -66,11 +67,11 @@ class ListExtensionsToolTest extends TestCase
             $this->contextProvider(['plugin:read', 'app:read']),
         );
 
-        $data = json_decode($tool('app'), true);
+        $result = $tool('app');
 
-        static::assertCount(1, $data['data']);
-        static::assertSame('app', $data['data'][0]['type']);
-        static::assertTrue($data['data'][0]['writable']);
+        static::assertCount(1, $result->data);
+        static::assertSame('app', $result->data[0]['type']);
+        static::assertTrue($result->data[0]['writable']);
     }
 
     public function testDeniesListingWithoutPluginReadPrivilege(): void
@@ -82,10 +83,12 @@ class ListExtensionsToolTest extends TestCase
             $this->contextProvider([]),
         );
 
-        $data = json_decode($tool(), true);
+        $result = $tool();
 
-        static::assertFalse($data['success']);
-        static::assertSame('Missing privilege: plugin:read', $data['error']);
+        static::assertTrue($result->isError());
+        static::assertNotNull($result->error);
+        static::assertSame(McpToolError::MISSING_PRIVILEGE, $result->error->code);
+        static::assertSame('Missing privilege: plugin:read', $result->error->message);
     }
 
     public function testDeniesAppListingWithoutAppReadPrivilege(): void
@@ -97,10 +100,12 @@ class ListExtensionsToolTest extends TestCase
             $this->contextProvider(['plugin:read']),
         );
 
-        $data = json_decode($tool('app'), true);
+        $result = $tool('app');
 
-        static::assertFalse($data['success']);
-        static::assertSame('Missing privilege: app:read', $data['error']);
+        static::assertTrue($result->isError());
+        static::assertNotNull($result->error);
+        static::assertSame(McpToolError::MISSING_PRIVILEGE, $result->error->code);
+        static::assertSame('Missing privilege: app:read', $result->error->message);
     }
 
     /**

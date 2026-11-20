@@ -4,6 +4,7 @@ namespace Swag\McpDevTools\Tests\Unit\Tool;
 
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
+use Shopware\Core\Framework\Mcp\Result\McpToolError;
 use Swag\McpDevTools\Mcp\Prompt\Scaffold\CreateAdminEndpointPrompt;
 use Swag\McpDevTools\Mcp\Prompt\Scaffold\CreatePluginExtensionPrompt;
 use Swag\McpDevTools\Mcp\Prompt\Scaffold\CreatePluginPrompt;
@@ -17,13 +18,13 @@ class ScaffoldToolTest extends TestCase
 {
     public function testCatalogListsScaffoldTypesAndArguments(): void
     {
-        $data = json_decode(($this->tool())(), true);
+        $result = ($this->tool())();
 
-        static::assertTrue($data['success']);
-        static::assertSame(3, $data['_meta']['count']);
+        static::assertFalse($result->isError());
+        static::assertSame(3, $result->meta['count']);
 
         $byType = [];
-        foreach ($data['data'] as $entry) {
+        foreach ($result->data as $entry) {
             $byType[$entry['type']] = $entry;
         }
 
@@ -37,39 +38,43 @@ class ScaffoldToolTest extends TestCase
 
     public function testDispatchReturnsInstructions(): void
     {
-        $data = json_decode(($this->tool())(
+        $result = ($this->tool())(
             'create-admin-endpoint',
             (string) json_encode(['target' => 'SwagFoo', 'aclPrivileges' => 'product:read']),
-        ), true);
+        );
 
-        static::assertTrue($data['success']);
-        static::assertSame('create-admin-endpoint', $data['data']['type']);
-        static::assertStringContainsString('_acl', $data['data']['instructions']);
-        static::assertStringContainsString('product:read', $data['data']['instructions']);
+        static::assertFalse($result->isError());
+        static::assertSame('create-admin-endpoint', $result->data['type']);
+        static::assertStringContainsString('_acl', $result->data['instructions']);
+        static::assertStringContainsString('product:read', $result->data['instructions']);
     }
 
     public function testDispatchWithoutOptionsUsesDefaults(): void
     {
-        $data = json_decode(($this->tool())('create-plugin'), true);
+        $result = ($this->tool())('create-plugin');
 
-        static::assertTrue($data['success']);
-        static::assertStringContainsString('SwagExample', $data['data']['instructions']);
+        static::assertFalse($result->isError());
+        static::assertStringContainsString('SwagExample', $result->data['instructions']);
     }
 
     public function testUnknownTypeReturnsError(): void
     {
-        $data = json_decode(($this->tool())('does-not-exist'), true);
+        $result = ($this->tool())('does-not-exist');
 
-        static::assertFalse($data['success']);
-        static::assertStringContainsString('Unknown scaffold type', $data['error']);
+        static::assertTrue($result->isError());
+        static::assertNotNull($result->error);
+        static::assertSame(McpToolError::TOOL_ERROR, $result->error->code);
+        static::assertStringContainsString('Unknown scaffold type', $result->error->message);
     }
 
     public function testInvalidOptionsJsonReturnsError(): void
     {
-        $data = json_decode(($this->tool())('create-plugin', 'not-json'), true);
+        $result = ($this->tool())('create-plugin', 'not-json');
 
-        static::assertFalse($data['success']);
-        static::assertStringContainsString('must be a JSON object', $data['error']);
+        static::assertTrue($result->isError());
+        static::assertNotNull($result->error);
+        static::assertSame(McpToolError::TOOL_ERROR, $result->error->code);
+        static::assertStringContainsString('must be a JSON object', $result->error->message);
     }
 
     private function tool(): ScaffoldTool

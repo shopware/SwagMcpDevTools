@@ -10,6 +10,7 @@ use Shopware\Core\Framework\Context;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\EntitySearchResult;
 use Shopware\Core\Framework\Mcp\Context\McpContextProvider;
+use Shopware\Core\Framework\Mcp\Result\McpToolError;
 use Shopware\Core\Framework\Plugin\PluginCollection;
 use Swag\McpDevTools\Mcp\Tool\LoadSkillTool;
 
@@ -42,34 +43,40 @@ class LoadSkillToolTest extends TestCase
 
     public function testReturnsSkillBody(): void
     {
-        $data = json_decode(($this->tool())('shopware-php-code'), true);
+        $result = ($this->tool())('shopware-php-code');
 
-        static::assertTrue($data['success']);
-        static::assertSame('shopware-php-code', $data['data']['name']);
-        static::assertStringContainsString('The body content', $data['data']['body']);
+        static::assertFalse($result->isError());
+        static::assertSame('shopware-php-code', $result->data['name']);
+        static::assertStringContainsString('The body content', $result->data['body']);
     }
 
     public function testErrorWhenNameMissing(): void
     {
-        $data = json_decode(($this->tool())(), true);
+        $result = ($this->tool())();
 
-        static::assertFalse($data['success']);
-        static::assertStringContainsString('name is required', $data['error']);
+        static::assertTrue($result->isError());
+        static::assertNotNull($result->error);
+        static::assertSame(McpToolError::TOOL_ERROR, $result->error->code);
+        static::assertStringContainsString('name is required', $result->error->message);
     }
 
     public function testErrorForUnknownSkill(): void
     {
-        $data = json_decode(($this->tool())('does-not-exist'), true);
+        $result = ($this->tool())('does-not-exist');
 
-        static::assertFalse($data['success']);
-        static::assertStringContainsString('not found', $data['error']);
+        static::assertTrue($result->isError());
+        static::assertNotNull($result->error);
+        static::assertSame(McpToolError::TOOL_ERROR, $result->error->code);
+        static::assertStringContainsString('not found', $result->error->message);
     }
 
     public function testRejectsPathTraversal(): void
     {
-        $data = json_decode(($this->tool())('../../../../etc/passwd'), true);
+        $result = ($this->tool())('../../../../etc/passwd');
 
-        static::assertFalse($data['success']);
+        static::assertTrue($result->isError());
+        static::assertNotNull($result->error);
+        static::assertSame(McpToolError::TOOL_ERROR, $result->error->code);
     }
 
     private function tool(): LoadSkillTool

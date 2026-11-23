@@ -9,6 +9,7 @@ use Shopware\Core\Framework\DataAbstractionLayer\EntityRepository;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
 use Shopware\Core\Framework\Mcp\Attribute\McpToolGroup;
 use Shopware\Core\Framework\Mcp\Context\McpContextProvider;
+use Shopware\Core\Framework\Mcp\Result\McpToolResult;
 use Shopware\Core\Framework\Mcp\Tool\McpToolResponse;
 use Shopware\Core\Framework\Plugin\PluginCollection;
 use Shopware\Core\Framework\Plugin\PluginEntity;
@@ -36,11 +37,11 @@ class ListSkillsTool extends McpToolResponse
     ) {
     }
 
-    public function __invoke(): string
+    public function __invoke(): McpToolResult
     {
         $skills = $this->scanSkills($this->projectDir, $this->extensionRoots());
 
-        return $this->success($skills, ['count' => \count($skills)]);
+        return McpToolResult::success($skills, ['count' => \count($skills)]);
     }
 
     /**

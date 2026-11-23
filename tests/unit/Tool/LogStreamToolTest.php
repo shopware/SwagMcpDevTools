@@ -5,6 +5,8 @@ namespace Swag\McpDevTools\Tests\Unit\Tool;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Shopware\Core\Framework\Mcp\Result\McpToolError;
+use Shopware\Core\Framework\Mcp\Result\McpToolResult;
 use Swag\McpDevTools\Mcp\Tool\LogStreamTool;
 
 /**
@@ -27,12 +29,13 @@ class LogStreamToolTest extends TestCase
 
     public function testReadsBundledDemoLogByDefault(): void
     {
-        $data = json_decode((new LogStreamTool())(), true, 512, \JSON_THROW_ON_ERROR);
+        $result = (new LogStreamTool())();
 
-        static::assertTrue($data['success']);
-        static::assertSame('demo.log', $data['_meta']['file']);
-        static::assertTrue($data['_meta']['demo']);
-        static::assertNotEmpty($data['data']);
+        static::assertFalse($result->isError());
+        static::assertSame('demo.log', $result->meta['file']);
+        static::assertTrue($result->meta['demo']);
+        static::assertIsArray($result->data);
+        static::assertNotSame([], $result->data);
     }
 
     public function testReadsEntriesNewestFirst(): void
@@ -42,21 +45,23 @@ class LogStreamToolTest extends TestCase
             '[2026-04-22T10:01:00.000000+00:00] shopware.ERROR: second message [] []',
         ]);
 
-        $data = $this->invoke();
+        $result = $this->invoke();
 
-        static::assertTrue($data['success']);
-        static::assertSame(basename($this->logFile), $data['_meta']['file']);
-        static::assertCount(2, $data['data']);
-        static::assertSame('second message', $data['data'][0]['message']);
-        static::assertSame('ERROR', $data['data'][0]['level']);
+        static::assertFalse($result->isError());
+        static::assertSame(basename($this->logFile), $result->meta['file']);
+        static::assertCount(2, $result->data);
+        static::assertSame('second message', $result->data[0]['message']);
+        static::assertSame('ERROR', $result->data[0]['level']);
     }
 
     public function testReturnsErrorWhenLogFileMissing(): void
     {
-        $data = $this->invoke();
+        $result = $this->invoke();
 
-        static::assertFalse($data['success']);
-        static::assertStringContainsString('Demo log file not found', $data['error']);
+        static::assertTrue($result->isError());
+        static::assertNotNull($result->error);
+        static::assertSame(McpToolError::TOOL_ERROR, $result->error->code);
+        static::assertStringContainsString('Demo log file not found', $result->error->message);
     }
 
     public function testFiltersByMinimumLevel(): void
@@ -67,10 +72,10 @@ class LogStreamToolTest extends TestCase
             '[2026-04-22T10:02:00.000000+00:00] shopware.ERROR: error line [] []',
         ]);
 
-        $data = $this->invoke(['level' => 'WARNING']);
+        $result = $this->invoke(['level' => 'WARNING']);
 
-        static::assertCount(2, $data['data']);
-        $levels = array_column($data['data'], 'level');
+        static::assertCount(2, $result->data);
+        $levels = array_column($result->data, 'level');
         static::assertNotContains('INFO', $levels);
     }
 
@@ -81,10 +86,10 @@ class LogStreamToolTest extends TestCase
             '[2026-04-22T10:00:00.000000+00:00] shopware.INFO: new [] []',
         ]);
 
-        $data = $this->invoke(['since' => '2026-04-22T09:30:00+00:00']);
+        $result = $this->invoke(['since' => '2026-04-22T09:30:00+00:00']);
 
-        static::assertCount(1, $data['data']);
-        static::assertSame('new', $data['data'][0]['message']);
+        static::assertCount(1, $result->data);
+        static::assertSame('new', $result->data[0]['message']);
     }
 
     public function testCallerCannotChooseTheLogFile(): void
@@ -125,9 +130,9 @@ class LogStreamToolTest extends TestCase
         }
         $this->writeLog($lines);
 
-        $data = $this->invoke(['limit' => 500]);
+        $result = $this->invoke(['limit' => 500]);
 
-        static::assertLessThanOrEqual(100, \count($data['data']));
+        static::assertLessThanOrEqual(100, \count($result->data));
     }
 
     public function testTruncatesLongMessages(): void
@@ -137,10 +142,10 @@ class LogStreamToolTest extends TestCase
             "[2026-04-22T10:00:00.000000+00:00] shopware.ERROR: {$longMessage} [] []",
         ]);
 
-        $data = $this->invoke();
+        $result = $this->invoke();
 
-        static::assertStringEndsWith('…', $data['data'][0]['message']);
-        static::assertLessThanOrEqual(501, mb_strlen($data['data'][0]['message']));
+        static::assertStringEndsWith('…', $result->data[0]['message']);
+        static::assertLessThanOrEqual(501, mb_strlen($result->data[0]['message']));
     }
 
     /**
@@ -240,14 +245,11 @@ class LogStreamToolTest extends TestCase
 
     /**
      * @param array<string, mixed> $args
-     *
-     * @return array<string, mixed>
      */
-    private function invoke(array $args = []): array
+    private function invoke(array $args = []): McpToolResult
     {
         $tool = new LogStreamTool($this->logFile);
-        $output = $tool(...$args);
 
-        return json_decode($output, true, 512, \JSON_THROW_ON_ERROR);
+        return $tool(...$args);
     }
 }

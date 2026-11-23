@@ -4,6 +4,7 @@ namespace Swag\McpDevTools\Mcp\Tool;
 
 use Mcp\Capability\Attribute\McpTool;
 use Shopware\Core\Framework\Mcp\Attribute\McpToolGroup;
+use Shopware\Core\Framework\Mcp\Result\McpToolResult;
 use Shopware\Core\Framework\Mcp\Tool\McpToolResponse;
 
 #[McpTool(
@@ -58,9 +59,9 @@ class LogStreamTool extends McpToolResponse
         string $level = '',
         string $since = '',
         int $limit = 50,
-    ): string {
+    ): McpToolResult {
         if (!is_file($this->logFile) || !is_readable($this->logFile)) {
-            return $this->error('Demo log file not found. The bundle installation is incomplete.');
+            return McpToolResult::failure('Demo log file not found. The bundle installation is incomplete.');
         }
 
         $effectiveLimit = min($limit, self::MAX_LIMIT);
@@ -91,7 +92,7 @@ class LogStreamTool extends McpToolResponse
             $entries[] = $parsed;
         }
 
-        return $this->success($entries, [
+        return McpToolResult::success($entries, [
             'file' => basename($this->logFile),
             'demo' => true,
             'count' => \count($entries),

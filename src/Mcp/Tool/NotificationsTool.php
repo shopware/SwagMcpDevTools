@@ -15,6 +15,7 @@ use Shopware\Core\Framework\DataAbstractionLayer\Search\Filter\RangeFilter;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Sorting\FieldSorting;
 use Shopware\Core\Framework\Mcp\Attribute\McpToolGroup;
 use Shopware\Core\Framework\Mcp\Context\McpContextProvider;
+use Shopware\Core\Framework\Mcp\Result\McpToolResult;
 use Shopware\Core\Framework\Mcp\Tool\McpToolResponse;
 use Shopware\Core\Framework\Notification\NotificationCollection;
 use Shopware\Core\Framework\Notification\NotificationEntity;
@@ -44,7 +45,7 @@ class NotificationsTool extends McpToolResponse
         int $limit = 20,
         bool $wait = false,
         int $timeout = 60,
-    ): string {
+    ): McpToolResult {
         $client = $context->getClientGateway();
         $shopwareContext = $this->contextProvider->getContext();
         $source = $shopwareContext->getSource();
@@ -54,11 +55,11 @@ class NotificationsTool extends McpToolResponse
         // and each has its own read path below. Treating "not an admin" as "must be the
         // trusted CLI" would silently hand an unfiltered read to any future source.
         if (!$source instanceof AdminApiSource && !$source instanceof SystemSource) {
-            return $this->error(\sprintf('Unsupported context source "%s" for reading notifications.', $source::class));
+            return McpToolResult::failure(\sprintf('Unsupported context source "%s" for reading notifications.', $source::class));
         }
 
         if (!$wait) {
-            return $this->success($this->fetchNotifications($shopwareContext, $since, $limit));
+            return McpToolResult::success($this->fetchNotifications($shopwareContext, $since, $limit));
         }
 
         $elapsed = 0;
@@ -72,7 +73,7 @@ class NotificationsTool extends McpToolResponse
                 }
                 $client->progress(100.0, 100.0, 'Notification received.');
 
-                return $this->success($result);
+                return McpToolResult::success($result);
             }
 
             // The cursor is reported pre-filter, so a page emptied entirely by adminOnly or
@@ -87,7 +88,7 @@ class NotificationsTool extends McpToolResponse
         }
 
         // Hand back how far we got, so the caller resumes past the invisible pages.
-        return $this->success(['timeout' => true, 'count' => 0, 'notifications' => [], 'timestamp' => $cursor]);
+        return McpToolResult::success(['timeout' => true, 'count' => 0, 'notifications' => [], 'timestamp' => $cursor]);
     }
 
     /**

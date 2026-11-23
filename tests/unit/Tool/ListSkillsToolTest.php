@@ -42,21 +42,21 @@ class ListSkillsToolTest extends TestCase
 
     public function testListsCoreSkills(): void
     {
-        $data = json_decode(($this->tool($this->projectDir))(), true);
+        $result = ($this->tool($this->projectDir))();
 
-        static::assertTrue($data['success']);
-        static::assertCount(1, $data['data']);
-        static::assertSame('shopware-php-code', $data['data'][0]['name']);
-        static::assertSame('core', $data['data'][0]['source']);
-        static::assertSame('Apply Shopware PHP guidance.', $data['data'][0]['description']);
+        static::assertFalse($result->isError());
+        static::assertCount(1, $result->data);
+        static::assertSame('shopware-php-code', $result->data[0]['name']);
+        static::assertSame('core', $result->data[0]['source']);
+        static::assertSame('Apply Shopware PHP guidance.', $result->data[0]['description']);
     }
 
     public function testGracefulWhenNoSkillsDir(): void
     {
-        $data = json_decode(($this->tool(sys_get_temp_dir() . '/mcp-nope-' . uniqid('', true)))(), true);
+        $result = ($this->tool(sys_get_temp_dir() . '/mcp-nope-' . uniqid('', true)))();
 
-        static::assertTrue($data['success']);
-        static::assertSame([], $data['data']);
+        static::assertFalse($result->isError());
+        static::assertSame([], $result->data);
     }
 
     private function tool(string $projectDir): ListSkillsTool

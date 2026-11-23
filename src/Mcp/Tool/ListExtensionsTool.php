@@ -10,9 +10,11 @@ use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
 use Shopware\Core\Framework\Mcp\Attribute\McpToolGroup;
 use Shopware\Core\Framework\Mcp\Attribute\McpToolRequires;
 use Shopware\Core\Framework\Mcp\Context\McpContextProvider;
+use Shopware\Core\Framework\Mcp\Result\McpToolResult;
 use Shopware\Core\Framework\Mcp\Tool\McpToolResponse;
 use Shopware\Core\Framework\Plugin\PluginCollection;
 use Shopware\Core\Framework\Plugin\PluginEntity;
+use Swag\McpDevTools\Mcp\Tool\Concern\RequiresPrivileges;
 
 #[McpTool(
     name: 'swag-dev-tools-list-extensions',
@@ -24,6 +26,8 @@ use Shopware\Core\Framework\Plugin\PluginEntity;
 #[McpToolRequires('app:read')]
 class ListExtensionsTool extends McpToolResponse
 {
+    use RequiresPrivileges;
+
     /**
      * @param EntityRepository<PluginCollection> $pluginRepository
      * @param EntityRepository<AppCollection> $appRepository
@@ -36,13 +40,13 @@ class ListExtensionsTool extends McpToolResponse
     ) {
     }
 
-    public function __invoke(string $type = ''): string
+    public function __invoke(string $type = ''): McpToolResult
     {
         $context = $this->contextProvider->getContext();
         $extensions = [];
 
         if ($type === '' || $type === 'plugin') {
-            if ($error = $this->requirePrivilege($context, 'plugin:read')) {
+            if ($error = $this->requirePrivilegeResult($context, 'plugin:read')) {
                 return $error;
             }
 
@@ -53,7 +57,7 @@ class ListExtensionsTool extends McpToolResponse
         }
 
         if ($type === '' || $type === 'app') {
-            if ($error = $this->requirePrivilege($context, 'app:read')) {
+            if ($error = $this->requirePrivilegeResult($context, 'app:read')) {
                 return $error;
             }
 
@@ -63,7 +67,7 @@ class ListExtensionsTool extends McpToolResponse
             }
         }
 
-        return $this->success($extensions, ['count' => \count($extensions)]);
+        return McpToolResult::success($extensions, ['count' => \count($extensions)]);
     }
 
     /**

@@ -102,6 +102,11 @@ jobs:
           shopwareVersion: ${{ env.SHOPWARE_VERSION }}
           extraRepositories: ${{ env.EXTRA_REPOSITORIES }}
 
+      # debug:mcp reads the database (app MCP tools), so it needs an installed shop.
+      # install: true would also run plugin:install, which fails for this bundle.
+      - name: Install database
+        run: composer run init:db
+
       - name: Register bundle
         run: |
           sed -i '/^return \$bundles;/i $bundles[Swag\\McpDevTools\\SwagMcpDevToolsBundle::class] = ["all" => true];' config/bundles.php
